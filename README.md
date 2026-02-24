@@ -2,12 +2,9 @@
 - Built with Claude Code and Cursor.
 - This was built as a personal cybersecurity demonstration project.
 - Feel free to fork and modify it for your own purposes.
-- This project is not production-ready.
 - It contains intentional bugs and vulnerabilities that were included to serve its demonstration purposes.
-- Please do not use this in a live environment.
 - This repository's commit history may contain hardcoded credentials that were included for demonstration purposes only.
-- If you plan to use or fork this project, it is crucial that you replace them with your own secure credentials.
-- Proceed at your own risk in live environment.
+- Proceed at your own risk in production environment.
 .
 .
 .
@@ -16,12 +13,14 @@
 .
 .
 .
-- - -
+.
 .
 # Promptexify
 .
 .
 A comprehensive AI prompt directory for ChatGPT, Claude, Gemini, AI Code Editor, and more. Discover, share, and manage high-quality AI prompts with powerful search, categorization, and collaboration features.
+.
+.
 
 ## Features
 
