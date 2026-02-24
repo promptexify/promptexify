@@ -5,22 +5,10 @@
 - It contains intentional bugs and vulnerabilities that were included to serve its demonstration purposes.
 - This repository's commit history may contain hardcoded credentials that were included for demonstration purposes only.
 - Proceed at your own risk in production environment.
-.
-.
-.
-.
-.
-.
-.
-.
-.
-.
+
 # Promptexify
-.
-.
+
 A comprehensive AI prompt directory for ChatGPT, Claude, Gemini, AI Code Editor, and more. Discover, share, and manage high-quality AI prompts with powerful search, categorization, and collaboration features.
-.
-.
 
 ## Features
 
