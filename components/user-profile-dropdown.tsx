@@ -15,7 +15,6 @@ import { LogoutButton } from "@/components/auth/logout-button";
 import { UserData } from "@/lib/utils";
 import { IconCrown } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
-import { DarkModeToggle } from "./ui/toggle-darkmode";
 import Image from "next/image";
 
 interface UserType {
@@ -95,15 +94,12 @@ export function UserProfileDropdown({ user }: UserProfileDropdownProps) {
             )}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <div className="flex items-center w-full gap-4 p-2">
-          <DropdownMenuItem asChild>
-            <DarkModeToggle />
-          </DropdownMenuItem>
+        <div className="p-2">
           <DropdownMenuItem asChild>
             <LogoutButton
               variant="outline"
               size="sm"
-              className="justify-end hover:bg-transparent hover:text-foreground p-4 cursor-pointer"
+              className="w-full justify-center hover:bg-transparent hover:text-foreground p-4 cursor-pointer"
             >
               Log out
             </LogoutButton>

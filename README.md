@@ -1,5 +1,6 @@
 # ⚠️ IMPORTANT SECURITY NOTICE:
-- Built with Claude Code and Cursor.
+
+- Built with Claude Code and Google Antigravity.
 - This was built as a personal cybersecurity demonstration project.
 - Feel free to fork and modify it for your own purposes.
 - It contains intentional bugs and vulnerabilities that were included to serve its demonstration purposes.
@@ -16,7 +17,10 @@ A comprehensive AI prompt directory for ChatGPT, Claude, Gemini, AI Code Editor,
 - **Advanced Search & Filtering**: Find exactly what you need with powerful search
 - **Categories & Tags**: Organize prompts with intuitive categorization
 - **User Authentication**: Secure sign-up/sign-in with Supabase
-- **Content Management**: Full CRUD operations for prompts and categories
+- **Content Management**: Full CRUD operations with Sanity CMS
+- **Payments**: Stripe integration for premium features
+- **Background Jobs**: BullMQ and Redis for async operations
+- **Storage**: AWS S3 integration for robust media and file uploads
 - **Admin Dashboard**: Complete admin interface for content management
 - **Security-First**: Implements CSRF protection, CSP, rate limiting, and more
 - **Responsive Design**: Beautiful UI with Shadcn components and Tailwind CSS
@@ -27,7 +31,10 @@ A comprehensive AI prompt directory for ChatGPT, Claude, Gemini, AI Code Editor,
 - **Database**: PostgreSQL with Prisma ORM
 - **Authentication**: Supabase Auth
 - **Styling**: Tailwind CSS + Shadcn UI
-- **Content**: Contentlayer2 for static content
+- **Content**: Sanity CMS for rich content management
+- **Payments**: Stripe for subscriptions and billing
+- **Queue**: BullMQ with Redis for background processing
+- **Storage**: AWS S3 for secure file uploads
 - **Security**: Comprehensive security implementation with CSP and CSRF protection
 
 ## Security Implementation
@@ -76,31 +83,38 @@ Our CSP implementation follows the methodology outlined in `csp.md`:
 
 ### Prerequisites
 
-- Node.js 18+ 
+- Node.js 18+ (20+ recommended)
 - PostgreSQL database
-- Redis (optional, for rate limiting)
+- Redis (required for rate limiting and background jobs)
 - Supabase account
+- Sanity account
+- AWS S3 bucket (optional, for uploads)
+- Stripe account (optional, for payments)
 
 ### Setup
 
 1. **Clone the repository**
+
    ```bash
    git clone <repository-url>
    cd promptexify
    ```
 
 2. **Install dependencies**
+
    ```bash
    npm install
    ```
 
 3. **Set up environment variables**
+
    ```bash
    cp env.template .env.local
    # Fill in your environment variables
    ```
 
 4. **Set up the database**
+
    ```bash
    npm run db:migrate
    npm run db:push
@@ -117,7 +131,9 @@ See `env.template` for all required environment variables including:
 
 - Database connection (PostgreSQL)
 - Supabase configuration
-- Redis URL (optional)
+- Sanity configuration
+- Stripe API keys
+- Redis URL
 - AWS S3 credentials (for file uploads)
 - Other service configurations
 

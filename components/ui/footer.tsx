@@ -1,13 +1,8 @@
 import Link from "next/link";
-import {
-  Github,
-  Twitter,
-  Instagram,
-  Youtube,
-  Facebook,
-} from "@/components/ui/icons";
+import { Github } from "@/components/ui/icons";
 import { Logo } from "@/components/ui/logo";
 import { Container } from "@/components/ui/container";
+import { DarkModeToggle } from "@/components/ui/toggle-darkmode";
 
 export function Footer() {
   return (
@@ -22,42 +17,17 @@ export function Footer() {
               creativity and productivity across various tools and platforms.
               Better prompt, better results!
             </p>
-            <div className="flex space-x-4">
+            <div className="flex items-center space-x-2 border-t border-border/40 pt-5 mt-10">
               <Link
-                href="https://github.com"
-                className="text-muted-foreground hover:text-foreground transition-colors"
+                href="https://github.com/chhayvoinvy/promptexify"
+                className="flex items-center justify-center h-10 w-10 border border-input rounded-md text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
                 aria-label="GitHub"
+                target="_blank"
+                rel="noopener noreferrer"
               >
-                <Github className="h-5 w-5 sm:h-4 sm:w-4" />
+                <Github className="h-[1.2rem] w-[1.2rem]" />
               </Link>
-              <Link
-                href="https://twitter.com"
-                className="text-muted-foreground hover:text-foreground transition-colors"
-                aria-label="Twitter"
-              >
-                <Twitter className="h-5 w-5 sm:h-4 sm:w-4" />
-              </Link>
-              <Link
-                href="mailto:contact@promptexify.com"
-                className="text-muted-foreground hover:text-foreground transition-colors"
-                aria-label="Email"
-              >
-                <Instagram className="h-5 w-5 sm:h-4 sm:w-4" />
-              </Link>
-              <Link
-                href="https://www.youtube.com/@promptexify"
-                className="text-muted-foreground hover:text-foreground transition-colors"
-                aria-label="YouTube"
-              >
-                <Youtube className="h-5 w-5 sm:h-4 sm:w-4" />
-              </Link>
-              <Link
-                href="https://www.facebook.com/promptexify"
-                className="text-muted-foreground hover:text-foreground transition-colors"
-                aria-label="Facebook"
-              >
-                <Facebook className="h-5 w-5 sm:h-4 sm:w-4" />
-              </Link>
+              <DarkModeToggle />
             </div>
           </div>
 
@@ -222,7 +192,7 @@ export function Footer() {
         <div className="mt-8 border-t border-border/40 pt-6 sm:mt-12 sm:pt-8">
           <div className="flex flex-col items-center justify-between space-y-1 text-center md:flex-row md:space-y-0 md:text-left">
             <p className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()} Promptexify. All rights reserved.
+              © {new Date().getFullYear()} Promptexify.
             </p>
             <p className="text-sm text-muted-foreground">
               Prompts can generate inaccurate results. Please process with

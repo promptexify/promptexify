@@ -22,7 +22,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { DarkModeToggle } from "@/components/ui/toggle-darkmode";
 import { Container } from "@/components/ui/container";
 
 // Mobile Navigation Component
@@ -306,7 +305,6 @@ export function Header() {
                 >
                   Sign In
                 </Link>
-                <DarkModeToggle />
               </>
             )}
           </div>
@@ -342,9 +340,7 @@ export function Header() {
                 className="w-[300px] sm:w-[400px] px-4"
               >
                 <SheetHeader>
-                  <SheetTitle>
-                    <DarkModeToggle />
-                  </SheetTitle>
+                  <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
                   <SheetDescription>
                     Navigation menu for browsing prompts and accessing account
                     features

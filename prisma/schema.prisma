@@ -205,6 +205,7 @@ model Media {
   @@index([uploadedBy])
   @@index([mimeType])
   @@index([createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)], map: "media_createdAt_desc_idx")
   @@map("media")
 }
 
