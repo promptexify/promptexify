@@ -42,7 +42,6 @@ export function InfinitePostGrid({
   const loadingRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
   const previousSearchParamsRef = useRef<string>("");
-  const hasUserScrolledRef = useRef(false);
   const isLoadingRequestRef = useRef(false);
   const lastRequestPageRef = useRef<number>(0);
   const hasNextPageRef = useRef(initialHasNextPage);
@@ -85,7 +84,6 @@ export function InfinitePostGrid({
       setHasNextPage(initialHasNextPage);
       setError(null);
       setRetryCount(0);
-      hasUserScrolledRef.current = false;
       isLoadingRequestRef.current = false;
       lastRequestPageRef.current = 0;
       hasNextPageRef.current = initialHasNextPage;
@@ -234,8 +232,7 @@ export function InfinitePostGrid({
     const handleIntersection = (entries: IntersectionObserverEntry[]) => {
       const target = entries[0];
 
-      // Only proceed if element is intersecting and user has scrolled
-      if (!target.isIntersecting || !hasUserScrolledRef.current) {
+      if (!target.isIntersecting) {
         return;
       }
 
@@ -263,36 +260,6 @@ export function InfinitePostGrid({
     };
   }, [loadMorePosts]); // Include loadMorePosts dependency
 
-  // Simple scroll detection to mark user interaction
-  useEffect(() => {
-    const handleScroll = () => {
-      if (!hasUserScrolledRef.current) {
-        const scrollTop =
-          window.pageYOffset || document.documentElement.scrollTop;
-        if (scrollTop > 100) {
-          hasUserScrolledRef.current = true;
-        }
-      }
-    };
-
-    // Throttle scroll events for performance
-    let ticking = false;
-    const throttledScroll = () => {
-      if (!ticking) {
-        requestAnimationFrame(() => {
-          handleScroll();
-          ticking = false;
-        });
-        ticking = true;
-      }
-    };
-
-    window.addEventListener("scroll", throttledScroll, { passive: true });
-
-    return () => {
-      window.removeEventListener("scroll", throttledScroll);
-    };
-  }, []);
 
   // Manual load more function for button clicks
   const handleManualLoadMore = useCallback(() => {

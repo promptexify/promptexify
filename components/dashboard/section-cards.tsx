@@ -1,7 +1,6 @@
 import {
   IconTrendingDown,
   IconTrendingUp,
-  IconEye,
   IconBookmark,
   IconHeart,
   IconCategory,
@@ -40,7 +39,6 @@ interface DashboardStats {
     growthPercentage: number;
   };
   engagement: {
-    totalViews: number;
     totalBookmarks: number;
     totalFavorites: number;
   };
@@ -253,7 +251,7 @@ export function EngagementCards({
     return (
       <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs @xl/main:grid-cols-2 @5xl/main:grid-cols-3">
         {/* Loading skeleton cards */}
-        {Array.from({ length: 3 }, (_, i) => (
+        {Array.from({ length: 2 }, (_, i) => (
           <Card key={i} className="@container/card">
             <CardHeader>
               <CardDescription>
@@ -273,25 +271,7 @@ export function EngagementCards({
   }
 
   return (
-    <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs @xl/main:grid-cols-2 @5xl/main:grid-cols-3">
-      {/* Total Views Card (disabled for now) */}
-      <Card className="@container/card">
-        <CardHeader>
-          <CardDescription className="flex items-center gap-2">
-            <IconEye className="h-4 w-4" />
-            Total Views
-          </CardDescription>
-          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            {formatNumber(dashboardStats.engagement.totalViews)}
-          </CardTitle>
-        </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div className="line-clamp-1 flex gap-2 font-medium text-muted-foreground">
-            Total content views across all posts
-          </div>
-        </CardFooter>
-      </Card>
-
+    <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs @xl/main:grid-cols-2">
       {/* Total Bookmarks Card */}
       <Card className="@container/card">
         <CardHeader>

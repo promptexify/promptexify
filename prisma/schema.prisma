@@ -93,25 +93,25 @@ model Post {
   media            Media[]
   author           User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
   category         Category        @relation(fields: [categoryId], references: [id])
-  views            View[]
   tags             Tag[]           @relation("PostToTag")
 
+  // Core listing index — covers isPublished + createdAt DESC ordering
   @@index([isPublished, createdAt(sort: Desc)])
+  // Category filtering with publish status
   @@index([categoryId, isPublished, createdAt(sort: Desc)])
+  // Author pages
   @@index([authorId, createdAt(sort: Desc)])
+  // Premium/featured filtering
   @@index([isPremium, isPublished])
   @@index([isFeatured, isPublished])
+  // Status-based queries (dashboard)
   @@index([status, createdAt(sort: Desc)])
-  @@index([title])
+  // Combined premium+publish listing
   @@index([isPublished, isPremium, createdAt(sort: Desc)])
-  @@index([slug])
+  // Author dashboard filtering
   @@index([authorId, status])
-  @@index([isPublished, createdAt(sort: Desc), isPremium])
   @@index([authorId, isPublished, status])
-  @@index([isFeatured, isPremium, isPublished, createdAt(sort: Desc)])
   @@index([authorId, status, createdAt(sort: Desc)])
-  @@index([previewPath])
-  @@index([previewVideoPath])
   @@map("posts")
 }
 
@@ -144,21 +144,6 @@ model Favorite {
   @@map("favorites")
 }
 
-model View {
-  id        String   @id @default(uuid())
-  postId    String
-  ipAddress String
-  userAgent String?
-  createdAt DateTime @default(now())
-  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
-
-  @@unique([postId, ipAddress])
-  @@index([postId, createdAt(sort: Desc)])
-  @@index([createdAt(sort: Desc)])
-  @@index([postId])
-  @@index([ipAddress])
-  @@map("views")
-}
 
 model Log {
   id         String   @id @default(uuid())
@@ -199,13 +184,13 @@ model Media {
   blurDataUrl  String?
   post         Post?    @relation(fields: [postId], references: [id])
 
-  @@index([filename])
+  // Removed filename index — @unique already creates one
   @@index([relativePath])
   @@index([postId])
   @@index([uploadedBy])
   @@index([mimeType])
   @@index([createdAt(sort: Desc)])
-  @@index([createdAt(sort: Desc)], map: "media_createdAt_desc_idx")
+  // Removed duplicate createdAt DESC index (was "media_createdAt_desc_idx")
   @@map("media")
 }
 

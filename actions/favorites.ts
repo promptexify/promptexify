@@ -43,16 +43,11 @@ export async function toggleFavoriteAction(data: FavoriteData) {
         },
       });
 
+      // Targeted cache invalidation — only favorite-relevant caches
       await revalidateCache([
+        CACHE_TAGS.USER_FAVORITES,
         CACHE_TAGS.POST_BY_ID,
-        CACHE_TAGS.POSTS,
-        CACHE_TAGS.SEARCH_RESULTS,
-        CACHE_TAGS.RELATED_POSTS,
-        CACHE_TAGS.USER_FAVORITES,
         CACHE_TAGS.POPULAR_POSTS,
-        CACHE_TAGS.USER_POSTS,
-        CACHE_TAGS.USER_BOOKMARKS,
-        CACHE_TAGS.USER_FAVORITES,
       ]);
       return { success: true, favorited: false };
     } else {
@@ -64,14 +59,10 @@ export async function toggleFavoriteAction(data: FavoriteData) {
         },
       });
 
+      // Targeted cache invalidation — only favorite-relevant caches
       await revalidateCache([
-        CACHE_TAGS.POST_BY_ID,
-        CACHE_TAGS.POSTS,
-        CACHE_TAGS.SEARCH_RESULTS,
-        CACHE_TAGS.RELATED_POSTS,
-        CACHE_TAGS.USER_POSTS,
-        CACHE_TAGS.USER_BOOKMARKS,
         CACHE_TAGS.USER_FAVORITES,
+        CACHE_TAGS.POST_BY_ID,
         CACHE_TAGS.POPULAR_POSTS,
       ]);
       return { success: true, favorited: true };
@@ -131,7 +122,8 @@ export async function getUserFavoritesAction() {
             tags: true,
             _count: {
               select: {
-                views: true,
+                bookmarks: true,
+                favorites: true,
               },
             },
           },

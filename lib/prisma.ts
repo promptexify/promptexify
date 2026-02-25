@@ -151,19 +151,22 @@ export { prisma };
  * Performance monitoring utilities
  */
 export class DatabaseMetrics {
-  private static queryTimes: number[] = [];
+  // Circular buffer for O(1) insertion without array re-indexing
+  private static readonly MAX_QUERIES = 100;
+  private static queryTimes: number[] = new Array(100).fill(0);
+  private static writeIndex = 0;
+  private static count = 0;
 
   static startQuery(): () => void {
     const start = Date.now();
 
     return () => {
       const duration = Date.now() - start;
-      this.queryTimes.push(duration);
 
-      // Keep only last 100 queries for memory efficiency
-      if (this.queryTimes.length > 100) {
-        this.queryTimes.shift();
-      }
+      // Write to circular buffer at current position
+      this.queryTimes[this.writeIndex] = duration;
+      this.writeIndex = (this.writeIndex + 1) % this.MAX_QUERIES;
+      if (this.count < this.MAX_QUERIES) this.count++;
 
       // Log slow queries in development
       if (process.env.NODE_ENV === "development" && duration > 1000) {
@@ -173,12 +176,17 @@ export class DatabaseMetrics {
   }
 
   static getAverageQueryTime(): number {
-    if (this.queryTimes.length === 0) return 0;
-    return this.queryTimes.reduce((a, b) => a + b, 0) / this.queryTimes.length;
+    if (this.count === 0) return 0;
+    const sum = this.queryTimes
+      .slice(0, this.count)
+      .reduce((a, b) => a + b, 0);
+    return sum / this.count;
   }
 
   static getSlowQueries(threshold: number = 1000): number {
-    return this.queryTimes.filter((time) => time > threshold).length;
+    return this.queryTimes
+      .slice(0, this.count)
+      .filter((time) => time > threshold).length;
   }
 }
 

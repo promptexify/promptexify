@@ -43,16 +43,10 @@ export async function toggleBookmarkAction(data: BookmarkData) {
         },
       });
 
-      // Invalidate caches for this post and listings
+      // Targeted cache invalidation — only bookmark-relevant caches
       await revalidateCache([
-        CACHE_TAGS.POST_BY_ID,
-        CACHE_TAGS.POSTS,
-        CACHE_TAGS.USER_POSTS,
-        CACHE_TAGS.SEARCH_RESULTS,
-        CACHE_TAGS.RELATED_POSTS,
         CACHE_TAGS.USER_BOOKMARKS,
-        CACHE_TAGS.USER_FAVORITES,
-        CACHE_TAGS.POPULAR_POSTS,
+        CACHE_TAGS.POST_BY_ID,
       ]);
       return { success: true, bookmarked: false };
     } else {
@@ -64,15 +58,10 @@ export async function toggleBookmarkAction(data: BookmarkData) {
         },
       });
 
+      // Targeted cache invalidation — only bookmark-relevant caches
       await revalidateCache([
-        CACHE_TAGS.POST_BY_ID,
-        CACHE_TAGS.POSTS,
-        CACHE_TAGS.USER_POSTS,
-        CACHE_TAGS.SEARCH_RESULTS,
-        CACHE_TAGS.RELATED_POSTS,
         CACHE_TAGS.USER_BOOKMARKS,
-        CACHE_TAGS.USER_FAVORITES,
-        CACHE_TAGS.POPULAR_POSTS,
+        CACHE_TAGS.POST_BY_ID,
       ]);
       return { success: true, bookmarked: true };
     }
@@ -138,7 +127,8 @@ export async function getUserBookmarksAction() {
             tags: true,
             _count: {
               select: {
-                views: true,
+                bookmarks: true,
+                favorites: true,
               },
             },
           },

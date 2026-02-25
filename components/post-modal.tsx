@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -51,51 +51,24 @@ function PostContentModal({
   const [isCopied, setIsCopied] = useState(false);
   const [isLinkCopied, setIsLinkCopied] = useState(false);
   const [showAllTags, setShowAllTags] = useState(false);
-  const viewTracked = useRef(false);
 
-  // State for fresh bookmark/favorite status
+
+  // Use bookmark/favorite status directly from post data
+  // (merged into /api/posts/[id] response — no separate /status call needed)
   const [bookmarkStatus, setBookmarkStatus] = useState({
-    isBookmarked: post.isBookmarked,
-    isFavorited: post.isFavorited,
+    isBookmarked: post.isBookmarked ?? false,
+    isFavorited: post.isFavorited ?? false,
     isLoading: false,
   });
 
-  // Refresh bookmark/favorite status when modal opens
+  // Keep status in sync if post prop updates (e.g., after toggle actions)
   useEffect(() => {
-    const refreshStatus = async () => {
-      try {
-        setBookmarkStatus((prev) => ({ ...prev, isLoading: true }));
-
-        // Fetch fresh bookmark/favorite status
-        const response = await fetch(`/api/posts/${post.id}/status`);
-        if (response.ok) {
-          const data = await response.json();
-          setBookmarkStatus({
-            isBookmarked: data.isBookmarked ?? post.isBookmarked,
-            isFavorited: data.isFavorited ?? post.isFavorited,
-            isLoading: false,
-          });
-        } else {
-          // Fallback to original values if API fails
-          setBookmarkStatus({
-            isBookmarked: post.isBookmarked,
-            isFavorited: post.isFavorited,
-            isLoading: false,
-          });
-        }
-      } catch (error) {
-        console.error("Failed to refresh bookmark/favorite status:", error);
-        // Fallback to original values on error
-        setBookmarkStatus({
-          isBookmarked: post.isBookmarked,
-          isFavorited: post.isFavorited,
-          isLoading: false,
-        });
-      }
-    };
-
-    refreshStatus();
-  }, [post.id, post.isBookmarked, post.isFavorited]);
+    setBookmarkStatus({
+      isBookmarked: post.isBookmarked ?? false,
+      isFavorited: post.isFavorited ?? false,
+      isLoading: false,
+    });
+  }, [post.isBookmarked, post.isFavorited]);
 
   const copyToClipboard = async () => {
     const contentToCopy =
@@ -190,22 +163,6 @@ function PostContentModal({
     };
   }, []);
 
-  // Track view when modal opens - only once
-  useEffect(() => {
-    if (viewTracked.current) return;
-
-    const incrementView = async () => {
-      try {
-        viewTracked.current = true;
-        await fetch(`/api/posts/${post.id}/view`, { method: "POST" });
-      } catch (error) {
-        console.error("Failed to track view:", error);
-        viewTracked.current = false; // Reset on error to allow retry
-      }
-    };
-
-    incrementView();
-  }, [post.id]);
 
   const handleClose = () => {
     if (onClose) {

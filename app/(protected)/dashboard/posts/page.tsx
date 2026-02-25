@@ -125,9 +125,6 @@ function TableSkeleton() {
                   <Skeleton className="h-5 w-8" />
                 </TableCell>
                 <TableCell>
-                  <Skeleton className="h-4 w-8" />
-                </TableCell>
-                <TableCell>
                   <Skeleton className="h-4 w-16" />
                 </TableCell>
                 <TableCell>
@@ -241,7 +238,7 @@ async function PostsManagementContent({
 
     // Map sortBy to database sorting options
     let sortBy: "latest" | "popular" | "trending" = "latest";
-    if (filters.sortBy === "views") sortBy = "popular";
+    if (filters.sortBy === "favorites") sortBy = "popular";
     else if (filters.sortBy === "oldest") sortBy = "latest"; // Will be handled differently
 
     // Use optimized paginated query instead of loading all posts
@@ -343,7 +340,6 @@ async function PostsManagementContent({
                   <TableHead>Status</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Featured</TableHead>
-                  <TableHead>Views</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead className="w-[70px]">Actions</TableHead>
                 </TableRow>
@@ -453,7 +449,7 @@ async function PostsManagementContent({
                         </Badge>
                       )}
                     </TableCell>
-                    <TableCell>{post._count?.views || 0}</TableCell>
+
                     <TableCell>
                       {new Date(post.createdAt).toLocaleDateString()}
                     </TableCell>

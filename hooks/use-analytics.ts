@@ -10,7 +10,7 @@ interface AnalyticsData {
     mobile: number;
     total: number;
   }>;
-  totalViews: number;
+
   totalVisitors: number;
   topPages: Array<{
     page: string;
@@ -39,7 +39,6 @@ interface UseAnalyticsReturn {
 function generateMockData(range: string): AnalyticsData {
   const days = range === "7d" ? 7 : range === "30d" ? 30 : 90;
   const chartData = [];
-  let totalViews = 0;
   let totalVisitors = 0;
 
   // Optimize for smaller data structures
@@ -57,7 +56,6 @@ function generateMockData(range: string): AnalyticsData {
     const mobile = baseViews - desktop;
     const visitors = Math.floor(baseViews * (0.6 + Math.random() * 0.2)); // 60-80% of views
 
-    totalViews += baseViews;
     totalVisitors += visitors;
 
     chartData.push({
@@ -70,24 +68,23 @@ function generateMockData(range: string): AnalyticsData {
 
   // Use smaller, more efficient data structures
   const topPages = [
-    { page: "/", views: Math.floor(totalViews * 0.3) },
-    { page: "/directory", views: Math.floor(totalViews * 0.2) },
-    { page: "/entry/prompts", views: Math.floor(totalViews * 0.15) },
-    { page: "/pricing", views: Math.floor(totalViews * 0.1) },
-    { page: "/about", views: Math.floor(totalViews * 0.05) },
+    { page: "/", views: Math.floor(totalVisitors * 0.3) },
+    { page: "/directory", views: Math.floor(totalVisitors * 0.2) },
+    { page: "/entry/prompts", views: Math.floor(totalVisitors * 0.15) },
+    { page: "/pricing", views: Math.floor(totalVisitors * 0.1) },
+    { page: "/about", views: Math.floor(totalVisitors * 0.05) },
   ];
 
   const topReferrers = [
-    { referrer: "google.com", views: Math.floor(totalViews * 0.4) },
-    { referrer: "direct", views: Math.floor(totalViews * 0.2) },
-    { referrer: "twitter.com", views: Math.floor(totalViews * 0.15) },
-    { referrer: "github.com", views: Math.floor(totalViews * 0.1) },
-    { referrer: "reddit.com", views: Math.floor(totalViews * 0.05) },
+    { referrer: "google.com", views: Math.floor(totalVisitors * 0.4) },
+    { referrer: "direct", views: Math.floor(totalVisitors * 0.2) },
+    { referrer: "twitter.com", views: Math.floor(totalVisitors * 0.15) },
+    { referrer: "github.com", views: Math.floor(totalVisitors * 0.1) },
+    { referrer: "reddit.com", views: Math.floor(totalVisitors * 0.05) },
   ];
 
   return {
     chartData,
-    totalViews,
     totalVisitors,
     topPages,
     topReferrers,
@@ -192,7 +189,6 @@ export function useAnalyticsChart(options?: UseAnalyticsOptions) {
 
   return {
     chartData,
-    totalViews: data?.totalViews || 0,
     totalVisitors: data?.totalVisitors || 0,
     isLoading,
     error,
@@ -220,7 +216,7 @@ export function useAnalyticsTable(options?: UseAnalyticsOptions) {
     tableData,
     topPages: data?.topPages || [],
     topReferrers: data?.topReferrers || [],
-    totalViews: data?.totalViews || 0,
+    totalVisitors: data?.totalVisitors || 0,
     isLoading,
     error,
     refetch,

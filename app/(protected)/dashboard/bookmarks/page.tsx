@@ -78,7 +78,8 @@ async function BookmarksContent() {
     isBookmarked: true,
     isFavorited: favoritedPostIds.has(bookmark.post.id),
     _count: {
-      views: bookmark.post._count?.views || 0,
+      bookmarks: bookmark.post._count?.bookmarks || 0,
+      favorites: bookmark.post._count?.favorites || 0,
     },
   }));
 

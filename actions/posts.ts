@@ -133,23 +133,21 @@ export const createPostAction = withCSRFProtection(
         throw new Error(`A post may only have up to ${maxTagsPerPost} tags`);
       }
 
-      const tagConnections = [];
-
-      for (const tagName of tagNames) {
-        // Use enhanced tag slug sanitization
-        const tagSlug = sanitizeTagSlug(tagName);
-        if (tagSlug) {
-          const tag = await prisma.tag.upsert({
-            where: { slug: tagSlug },
-            update: {},
-            create: {
-              name: tagName,
-              slug: tagSlug,
-            },
-          });
-          tagConnections.push({ id: tag.id });
-        }
-      }
+      // Batch tag upserts in a single transaction to avoid N+1 queries
+      const tagConnections = await prisma.$transaction(
+        tagNames
+          .map((tagName) => {
+            const tagSlug = sanitizeTagSlug(tagName);
+            if (!tagSlug) return null;
+            return prisma.tag.upsert({
+              where: { slug: tagSlug },
+              update: {},
+              create: { name: tagName, slug: tagSlug },
+              select: { id: true },
+            });
+          })
+          .filter((op): op is NonNullable<typeof op> => op !== null)
+      );
 
       // Create the post
       const newPost = await prisma.post.create({
@@ -414,20 +412,19 @@ export const updatePostAction = withCSRFProtection(
         );
       }
 
-      const newTagConnections = [];
-
-      for (const tagName of newTagNames) {
-        const tagSlug = tagName.toLowerCase().replace(/\s+/g, "-");
-        const tag = await prisma.tag.upsert({
-          where: { slug: tagSlug },
-          update: {},
-          create: {
-            name: tagName,
-            slug: tagSlug,
-          },
-        });
-        newTagConnections.push({ id: tag.id });
-      }
+      // Batch tag upserts in a single transaction to avoid N+1 queries
+      const newTagConnections = await prisma.$transaction(
+        newTagNames
+          .map((tagName) => {
+            const tagSlug = tagName.toLowerCase().replace(/\s+/g, "-");
+            return prisma.tag.upsert({
+              where: { slug: tagSlug },
+              update: {},
+              create: { name: tagName, slug: tagSlug },
+              select: { id: true },
+            });
+          })
+      );
 
       // Update the post
       const updatedPost = await prisma.post.update({
@@ -468,20 +465,6 @@ export const updatePostAction = withCSRFProtection(
         });
       }
 
-      // Associate new media with the post
-      if (mediaToLink.length > 0) {
-        await prisma.media.updateMany({
-          where: {
-            id: {
-              in: mediaToLink,
-            },
-            postId: null, // Only link unassociated media
-          },
-          data: {
-            postId: updatedPost.id,
-          },
-        });
-      }
 
       revalidatePath("/dashboard/posts");
       // Removed entry path revalidation to prevent modal performance issues
@@ -704,7 +687,6 @@ export async function deletePostAction(postId: string) {
           select: {
             bookmarks: true,
             favorites: true,
-            views: true,
           },
         },
       },

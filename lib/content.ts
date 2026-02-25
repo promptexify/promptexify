@@ -8,7 +8,7 @@ export interface PostWithDetails {
   title: string;
   slug: string;
   description: string | null;
-  content: string;
+  content?: string; // Optional — list queries exclude content for performance
   uploadPath: string | null;
   uploadFileType: "IMAGE" | "VIDEO" | null;
   previewPath: string | null;
@@ -51,7 +51,8 @@ export interface PostWithDetails {
     slug: string;
   }[];
   _count: {
-    views: number;
+    bookmarks: number;
+    favorites: number;
   };
 }
 
@@ -135,7 +136,8 @@ const optimizedPostSelect = {
   },
   _count: {
     select: {
-      views: true,
+      bookmarks: true,
+      favorites: true,
     },
   },
 } as const;
@@ -161,6 +163,8 @@ const getAllPostsMemoized = cache(async (includeUnpublished = false) => {
     orderBy: {
       createdAt: "desc",
     },
+    // Safety limit to prevent unbounded fetching as dataset grows
+    take: 200,
   });
 });
 
@@ -432,7 +436,7 @@ async function _searchPosts(query: string): Promise<PostWithDetails[]> {
           OR: [
             { title: { contains: query, mode: "insensitive" } },
             { description: { contains: query, mode: "insensitive" } },
-            { content: { contains: query, mode: "insensitive" } },
+            // content search removed — ILIKE on full body causes sequential scans
             {
               tags: {
                 some: {
@@ -498,31 +502,6 @@ export const searchPosts = createCachedFunction(
   [CACHE_TAGS.SEARCH_RESULTS]
 );
 
-export async function incrementPostView(
-  postId: string,
-  ipAddress: string,
-  userAgent?: string
-): Promise<void> {
-  // Check if this IP has already viewed this post
-  const existingView = await prisma.view.findUnique({
-    where: {
-      postId_ipAddress: {
-        postId,
-        ipAddress,
-      },
-    },
-  });
-
-  if (!existingView) {
-    await prisma.view.create({
-      data: {
-        postId,
-        ipAddress,
-        userAgent,
-      },
-    });
-  }
-}
 
 export async function getTagById(id: string) {
   return await prisma.tag.findUnique({
@@ -769,7 +748,7 @@ export async function getPostsWithSorting(
         : false,
       _count: {
         select: {
-          views: true,
+          bookmarks: true,
           favorites: true,
         },
       },
@@ -778,7 +757,7 @@ export async function getPostsWithSorting(
       sortBy === "latest"
         ? { createdAt: "desc" }
         : sortBy === "trending"
-          ? { views: { _count: "desc" } }
+          ? { favorites: { _count: "desc" } }
           : sortBy === "popular"
             ? { favorites: { _count: "desc" } }
             : { createdAt: "desc" }, // fallback
@@ -907,13 +886,14 @@ export async function getRelatedPosts(
         : false,
       _count: {
         select: {
-          views: true,
+          bookmarks: true,
+          favorites: true,
         },
       },
     },
     orderBy: [
-      // Prioritize posts with more shared tags
-      { views: { _count: "desc" } },
+      // Prioritize posts with more favorites
+      { favorites: { _count: "desc" } },
       { createdAt: "desc" },
     ],
     take: limit,

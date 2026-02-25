@@ -50,7 +50,7 @@ export function PostStandalonePage({
   const [videoLoaded, setVideoLoaded] = useState(false);
 
   const videoRefs = useRef<Record<string, HTMLVideoElement>>({});
-  const viewTracked = useRef(false);
+
 
   // Get video preview path from post
   const videoPreviewPath = post.uploadPath && post.uploadFileType === "VIDEO" && post.previewPath
@@ -211,22 +211,6 @@ export function PostStandalonePage({
     }
   };
 
-  // Track view when page loads - only once
-  useEffect(() => {
-    if (viewTracked.current) return;
-
-    const incrementView = async () => {
-      try {
-        viewTracked.current = true;
-        await fetch(`/api/posts/${post.id}/view`, { method: "POST" });
-      } catch (error) {
-        console.error("Failed to track view:", error);
-        viewTracked.current = false; // Reset on error to allow retry
-      }
-    };
-
-    incrementView();
-  }, [post.id]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -543,9 +527,6 @@ export function PostStandalonePage({
                       {new Date(post.createdAt).toLocaleDateString()}
                     </div>
 
-                    <div className="text-xs">
-                      <span>{post._count?.views || 0} views</span>
-                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -632,9 +613,7 @@ export function PostStandalonePage({
                               {relatedPost.category.parent?.name ||
                                 relatedPost.category.name}
                             </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              {relatedPost._count?.views || 0} views
-                            </span>
+
                           </div>
                         </div>
                       </div>

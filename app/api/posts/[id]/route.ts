@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getPostById } from "@/lib/content";
 import { getPublicUrl } from "@/lib/image/storage";
+import { prisma } from "@/lib/prisma";
 
 interface RouteParams {
   params: Promise<{
@@ -38,12 +39,19 @@ async function handlePostRequest(request: NextRequest, { params }: RouteParams, 
       });
     }
 
-    // For GET requests, check if this is a dashboard request
+    // For GET requests, fetch user and post in parallel for performance
     const url = new URL(request.url);
     const isDashboardRequest = url.pathname.startsWith('/dashboard');
-    let user = undefined;
+
+    const [currentUser, post] = await Promise.all([
+      getCurrentUser().catch(() => null),
+      getPostById(id),
+    ]);
+
+    const user = currentUser || undefined;
+
+    // Dashboard-specific auth checks
     if (isDashboardRequest) {
-      user = await getCurrentUser();
       if (!user) {
         return NextResponse.json(
           { error: "Authentication required" },
@@ -58,9 +66,6 @@ async function handlePostRequest(request: NextRequest, { params }: RouteParams, 
         );
       }
     }
-
-    // Fetch post for GET requests
-    const post = await getPostById(id);
 
     if (!post) {
       return NextResponse.json({ error: "Post not found" }, { status: 404 });
@@ -93,8 +98,31 @@ async function handlePostRequest(request: NextRequest, { params }: RouteParams, 
       }
     }
 
+    // Merge bookmark/favorite status into response if user is authenticated
+    // This eliminates the need for a separate /status API call
+    let interactionStatus = { isBookmarked: false, isFavorited: false };
+    const userId = user?.userData?.id;
+
+    if (userId) {
+      const [bookmark, favorite] = await Promise.all([
+        prisma.bookmark.findUnique({
+          where: { userId_postId: { userId, postId: id } },
+          select: { id: true },
+        }),
+        prisma.favorite.findUnique({
+          where: { userId_postId: { userId, postId: id } },
+          select: { id: true },
+        }),
+      ]);
+      interactionStatus = {
+        isBookmarked: !!bookmark,
+        isFavorited: !!favorite,
+      };
+    }
+
     return NextResponse.json({
       ...post,
+      ...interactionStatus,
       uploadPath: post.uploadPath && post.uploadFileType === "IMAGE"
         ? await getPublicUrl(post.uploadPath)
         : null,

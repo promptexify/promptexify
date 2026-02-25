@@ -1,7 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { headers } from "next/headers";
 import {
-  incrementPostView,
   getRelatedPosts,
   getFeaturedPostIds,
 } from "@/lib/content";
@@ -90,12 +89,6 @@ export default async function PostPage({
     }
   }
 
-  const headersList = await headers();
-  const forwarded = headersList.get("x-forwarded-for");
-  const realIp = headersList.get("x-real-ip");
-  const userAgent = headersList.get("user-agent");
-  const clientIp = forwarded?.split(",")[0] || realIp || "127.0.0.1";
-  await incrementPostView(id, clientIp, userAgent || undefined);
   const relatedPosts = await getRelatedPosts(id, processedPost, userId, 6);
 
   return (

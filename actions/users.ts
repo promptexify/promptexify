@@ -568,13 +568,11 @@ export async function getAdminDashboardStatsAction() {
 
     // Get additional insights
     const [
-      totalViews,
       totalBookmarks,
       totalFavorites,
       popularCategories,
       recentActivity,
     ] = await Promise.all([
-      prisma.view.count(),
       prisma.bookmark.count(),
       prisma.favorite.count(),
 
@@ -642,9 +640,7 @@ export async function getAdminDashboardStatsAction() {
           growthPercentage: tagsGrowth,
         },
 
-        // Additional insights
         engagement: {
-          totalViews,
           totalBookmarks,
           totalFavorites,
         },

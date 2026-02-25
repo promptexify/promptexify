@@ -58,7 +58,7 @@ export function ChartAreaInteractive() {
   const isDevelopment = process.env.NODE_ENV !== "production";
 
   // Use the analytics hook to fetch real data
-  const { chartData, totalViews, totalVisitors, isLoading, error, refetch } =
+  const { chartData, totalVisitors, isLoading, error, refetch } =
     useAnalyticsChart({
       range: timeRange,
       refreshInterval: 5 * 60 * 1000, // Refresh every 5 minutes
@@ -153,12 +153,11 @@ export function ChartAreaInteractive() {
             </CardTitle>
             <CardDescription>
               <span className="hidden @[540px]/card:block">
-                {formatNumber(totalViews)} total views •{" "}
                 {formatNumber(totalVisitors)} unique visitors
                 {isDevelopment && " (mock data)"}
               </span>
               <span className="@[540px]/card:hidden">
-                {formatNumber(totalViews)} views
+                {formatNumber(totalVisitors)} visitors
                 {isDevelopment && " (mock)"}
               </span>
             </CardDescription>

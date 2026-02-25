@@ -80,7 +80,7 @@ export const POST_SELECTS = {
     },
     _count: {
       select: {
-        views: true,
+        bookmarks: true,
         favorites: true,
       },
     },
@@ -144,7 +144,6 @@ export const POST_SELECTS = {
     },
     _count: {
       select: {
-        views: true,
         favorites: true,
         bookmarks: true,
       },
@@ -194,7 +193,7 @@ export const POST_SELECTS = {
     },
     _count: {
       select: {
-        views: true,
+        bookmarks: true,
         favorites: true,
       },
     },
@@ -233,7 +232,6 @@ export const POST_SELECTS = {
     },
     _count: {
       select: {
-        views: true,
         favorites: true,
         bookmarks: true,
       },
@@ -376,9 +374,9 @@ export class PostQueries {
       | Prisma.PostOrderByWithRelationInput
       | Prisma.PostOrderByWithRelationInput[] =
       sortBy === "popular"
-        ? { views: { _count: "desc" } }
+        ? { favorites: { _count: "desc" } }
         : sortBy === "trending"
-          ? [{ views: { _count: "desc" } }, { createdAt: "desc" }]
+          ? [{ favorites: { _count: "desc" } }, { createdAt: "desc" }]
           : { createdAt: "desc" };
 
     const endTimer = DatabaseMetrics.startQuery();
@@ -507,7 +505,8 @@ export class PostQueries {
         OR: [
           { title: { contains: term, mode: "insensitive" } },
           { description: { contains: term, mode: "insensitive" } },
-          { content: { contains: term, mode: "insensitive" } },
+          // content search removed — ILIKE on full body causes sequential scans;
+          // title + description + tags give sufficient search coverage
           { tags: { some: { name: { contains: term, mode: "insensitive" } } } },
         ],
       })),
@@ -527,7 +526,7 @@ export class PostQueries {
         prisma.post.findMany({
           where: searchWhere,
           select: POST_SELECTS.list,
-          orderBy: [{ views: { _count: "desc" } }, { createdAt: "desc" }],
+          orderBy: [{ favorites: { _count: "desc" } }, { createdAt: "desc" }],
           skip,
           take: limit,
         }).catch((error) => {
@@ -648,7 +647,7 @@ export class PostQueries {
             },
           }),
         },
-        orderBy: [{ views: { _count: "desc" } }, { createdAt: "desc" }],
+        orderBy: [{ favorites: { _count: "desc" } }, { createdAt: "desc" }],
         take: limit,
       });
 
@@ -722,7 +721,7 @@ export class PostQueries {
     const endTimer = DatabaseMetrics.startQuery();
 
     try {
-      const post = await prisma.post.findFirst({
+      const post = await prisma.post.findUnique({
         where: { slug },
         select: {
           ...POST_SELECTS.full,
@@ -779,7 +778,7 @@ export class PostQueries {
             },
           }),
         },
-        orderBy: [{ views: { _count: "desc" } }, { createdAt: "desc" }],
+        orderBy: [{ favorites: { _count: "desc" } }, { createdAt: "desc" }],
         take: limit,
       });
 
@@ -804,7 +803,6 @@ export class PostQueries {
     rejected: number;
     premium: number;
     featured: number;
-    totalViews: number;
   }> {
     const endTimer = DatabaseMetrics.startQuery();
 
@@ -819,62 +817,44 @@ export class PostQueries {
         }),
       };
 
-      // Use Promise.all for parallel queries for better performance
-      const [
-        totalCount,
-        publishedCount,
-        draftCount,
-        pendingCount,
-        rejectedCount,
-        premiumCount,
-        featuredCount,
-        viewsAggregate,
-      ] = await Promise.all([
-        // Total posts
-        prisma.post.count({
-          where: params.includeUnpublished ? baseWhere : { ...baseWhere, isPublished: true },
-        }),
-        // Published posts
-        prisma.post.count({
-          where: { ...baseWhere, isPublished: true },
-        }),
-        // Draft posts
-        prisma.post.count({
-          where: { ...baseWhere, status: "DRAFT" },
-        }),
-        // Pending approval posts
-        prisma.post.count({
-          where: { ...baseWhere, status: "PENDING_APPROVAL" },
-        }),
-        // Rejected posts
-        prisma.post.count({
-          where: { ...baseWhere, status: "REJECTED" },
-        }),
-        // Premium posts
-        prisma.post.count({
-          where: { ...baseWhere, isPremium: true, isPublished: true },
-        }),
-        // Featured posts (admin only)
-        prisma.post.count({
-          where: { ...baseWhere, isFeatured: true, isPublished: true },
-        }),
-        // Total views across all posts
-        prisma.view.count({
-          where: {
-            post: params.includeUnpublished ? baseWhere : { ...baseWhere, isPublished: true },
-          },
-        }),
-      ]);
+      const grouped = await prisma.post.groupBy({
+          by: ["status", "isPublished", "isPremium", "isFeatured"],
+          where: baseWhere,
+          _count: true,
+        });
+
+      // Derive individual counts from grouped results
+      let total = 0;
+      let published = 0;
+      let draft = 0;
+      let pending = 0;
+      let rejected = 0;
+      let premium = 0;
+      let featured = 0;
+
+      for (const row of grouped) {
+        const count = row._count;
+
+        // Count towards total based on includeUnpublished flag
+        if (params.includeUnpublished || row.isPublished) {
+          total += count;
+        }
+        if (row.isPublished) published += count;
+        if (row.status === "DRAFT") draft += count;
+        if (row.status === "PENDING_APPROVAL") pending += count;
+        if (row.status === "REJECTED") rejected += count;
+        if (row.isPremium && row.isPublished) premium += count;
+        if (row.isFeatured && row.isPublished) featured += count;
+      }
 
       return {
-        total: totalCount,
-        published: publishedCount,
-        draft: draftCount,
-        pending: pendingCount,
-        rejected: rejectedCount,
-        premium: premiumCount,
-        featured: featuredCount,
-        totalViews: viewsAggregate,
+        total,
+        published,
+        draft,
+        pending,
+        rejected,
+        premium,
+        featured,
       };
     } finally {
       endTimer();

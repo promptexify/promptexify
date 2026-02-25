@@ -226,7 +226,7 @@ export function DataTable() {
   // Fetch analytics data for the analytics tab
   const {
     topPages,
-    totalViews,
+    totalVisitors,
     isLoading: analyticsLoading,
     error: analyticsError,
     refetch: refetchAnalytics,
@@ -240,9 +240,9 @@ export function DataTable() {
       id: index + 1,
       page: page.page,
       views: page.views,
-      percentage: totalViews > 0 ? (page.views / totalViews) * 100 : 0,
+      percentage: totalVisitors > 0 ? (page.views / totalVisitors) * 100 : 0,
     }));
-  }, [topPages, totalViews]);
+  }, [topPages, totalVisitors]);
 
   // Fetch user activity data
   const fetchUserActivity = React.useCallback(async () => {
@@ -642,9 +642,9 @@ export function DataTable() {
               </div>
               <div className="text-right">
                 <p className="text-2xl font-bold">
-                  {new Intl.NumberFormat("en-US").format(totalViews)}
+                  {new Intl.NumberFormat("en-US").format(totalVisitors)}
                 </p>
-                <p className="text-xs text-muted-foreground">Total Views</p>
+                <p className="text-xs text-muted-foreground">Total Visitors</p>
               </div>
             </div>
 

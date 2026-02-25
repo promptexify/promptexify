@@ -440,7 +440,8 @@ export class CacheMetrics {
  */
 export function memoize<T extends unknown[], R>(
   fn: (...args: T) => Promise<R>,
-  getKey?: (...args: T) => string
+  getKey?: (...args: T) => string,
+  maxSize: number = 1000
 ): (...args: T) => Promise<R> {
   const cache = new Map<string, Promise<R>>();
 
@@ -453,6 +454,13 @@ export function memoize<T extends unknown[], R>(
     }
 
     CacheMetrics.recordMiss();
+
+    // Evict oldest entries when cache exceeds max size (LRU-style)
+    if (cache.size >= maxSize) {
+      const firstKey = cache.keys().next().value;
+      if (firstKey !== undefined) cache.delete(firstKey);
+    }
+
     const promise = fn(...args).catch((error) => {
       CacheMetrics.recordError();
       cache.delete(key); // Remove failed promise from cache
