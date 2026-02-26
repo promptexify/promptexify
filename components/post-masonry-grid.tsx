@@ -414,11 +414,13 @@ export function PostMasonryGrid({ posts, userType }: PostMasonryGridProps) {
                   }
                 }
               }}
-              className="absolute"
+              className="absolute transition-opacity duration-500 ease-in-out"
               style={{
                 width: columnWidth,
                 left: position?.x || 0,
                 top: position?.y || 0,
+                opacity: position ? 1 : 0,
+                pointerEvents: position ? "auto" : "none",
               }}
             >
               <Link href={`/entry/${post.id}`} scroll={false}>
@@ -614,12 +616,12 @@ export function PostMasonryGrid({ posts, userType }: PostMasonryGridProps) {
                   <span className="line-clamp-2">
                     <span className="font-medium">Prompt: </span>
 
-                    {post.content
-                      ? post.content
+                    {post.description
+                      ? post.description
                           .replace(/^# .+\n\n/, "")
                           .replace(/\n+/g, " ")
                           .substring(0, 100) +
-                        (post.content.length > 100 ? "..." : "")
+                        (post.description.length > 100 ? "..." : "")
                       : "Something went wrong"}
                   </span>
                 </div>

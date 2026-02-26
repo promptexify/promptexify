@@ -16,11 +16,11 @@ export default function AuthLayout({
         <div className="flex items-center justify-center mt-5 max-w-sm px-4">
           <p className="text-center text-xs text-muted-foreground">
             By continuing, you agree to our{" "}
-            <Link href="/terms-of-use" className="text-primary">
+            <Link href="/terms" className="text-primary">
               Terms of Use
             </Link>{" "}
             and{" "}
-            <Link href="/privacy-policy" className="text-primary">
+            <Link href="/privacy" className="text-primary">
               Privacy Policy
             </Link>
           </p>
