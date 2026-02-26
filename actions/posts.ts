@@ -416,7 +416,7 @@ export const updatePostAction = withCSRFProtection(
       const newTagConnections = await prisma.$transaction(
         newTagNames
           .map((tagName) => {
-            const tagSlug = tagName.toLowerCase().replace(/\s+/g, "-");
+            const tagSlug = sanitizeTagSlug(tagName);
             return prisma.tag.upsert({
               where: { slug: tagSlug },
               update: {},

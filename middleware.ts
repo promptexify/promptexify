@@ -65,7 +65,7 @@ export async function middleware(request: NextRequest) {
       // Special handling for dynamic routes that should skip CSRF
       const shouldSkipCSRF = skipCSRF.some((path) =>
         pathname.startsWith(path)
-      ) || pathname.match(/^\/api\/posts\/[^/]+\/view$/);
+      );
 
       const shouldValidateCSRF = !shouldSkipCSRF;
 

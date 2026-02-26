@@ -40,32 +40,12 @@ async function handlePostRequest(request: NextRequest, { params }: RouteParams, 
     }
 
     // For GET requests, fetch user and post in parallel for performance
-    const url = new URL(request.url);
-    const isDashboardRequest = url.pathname.startsWith('/dashboard');
-
     const [currentUser, post] = await Promise.all([
       getCurrentUser().catch(() => null),
       getPostById(id),
     ]);
 
     const user = currentUser || undefined;
-
-    // Dashboard-specific auth checks
-    if (isDashboardRequest) {
-      if (!user) {
-        return NextResponse.json(
-          { error: "Authentication required" },
-          { status: 401 }
-        );
-      }
-      // Role-based access control for dashboard requests
-      if (user.userData?.role !== "ADMIN" && user.userData?.role !== "USER") {
-        return NextResponse.json(
-          { error: "Insufficient permissions" },
-          { status: 403 }
-        );
-      }
-    }
 
     if (!post) {
       return NextResponse.json({ error: "Post not found" }, { status: 404 });
