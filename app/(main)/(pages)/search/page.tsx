@@ -26,30 +26,34 @@ async function SearchResults({
   searchParams: SearchPageProps["searchParams"];
 }) {
   try {
-    // Handle async operations with individual error handling
+    // Fetch all independent data in parallel
     let categories: Awaited<ReturnType<typeof getAllCategories>> = [];
     let currentUser = null;
     let settingsResult = null;
-    
-    try {
-      categories = await getAllCategories();
-    } catch (error) {
-      console.warn("Failed to load categories:", error);
-      categories = []; // Fallback to empty array
+
+    const [categoriesResult, currentUserResult, settingsResultRaw] =
+      await Promise.allSettled([
+        getAllCategories(),
+        getCurrentUser(),
+        getSettingsAction(),
+      ]);
+
+    if (categoriesResult.status === "fulfilled") {
+      categories = categoriesResult.value;
+    } else {
+      console.warn("Failed to load categories:", categoriesResult.reason);
     }
-    
-    try {
-      currentUser = await getCurrentUser();
-    } catch (error) {
-      console.warn("Failed to get current user:", error);
-      // currentUser remains null for anonymous access
+
+    if (currentUserResult.status === "fulfilled") {
+      currentUser = currentUserResult.value;
+    } else {
+      console.warn("Failed to get current user:", currentUserResult.reason);
     }
-    
-    try {
-      settingsResult = await getSettingsAction();
-    } catch (error) {
-      console.warn("Failed to get settings:", error);
-      // settingsResult remains null, will use defaults
+
+    if (settingsResultRaw.status === "fulfilled") {
+      settingsResult = settingsResultRaw.value;
+    } else {
+      console.warn("Failed to get settings:", settingsResultRaw.reason);
     }
 
     const params = await searchParams;

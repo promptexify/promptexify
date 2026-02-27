@@ -20,12 +20,12 @@ export const CACHE_TAGS = {
 } as const;
 
 export const CACHE_DURATIONS = {
-  POSTS_LIST: 300, // 5 minutes for posts list
+  POSTS_LIST: 600, // 10 minutes for posts list
   POST_DETAIL: 600, // 10 minutes for individual posts
   STATIC_DATA: 3600, // 1 hour for categories/tags
   USER_DATA: 60, // 1 minute for user-specific data
   SEARCH: 180, // 3 minutes for search results
-  POPULAR_CONTENT: 900, // 15 minutes for popular content
+  POPULAR_CONTENT: 1800, // 30 minutes for popular content
   ANALYTICS: 1800, // 30 minutes for analytics
 } as const;
 
@@ -84,18 +84,18 @@ class MemoryCache implements CacheStore {
  */
 class RedisCache implements CacheStore {
   private redis: any = null; // eslint-disable-line @typescript-eslint/no-explicit-any
-  private isInitializing = false;
+  private _initPromise: Promise<any> | null = null; // eslint-disable-line @typescript-eslint/no-explicit-any
 
-  private async getRedis() {
-    if (this.redis) return this.redis;
+  private getRedis(): Promise<any> { // eslint-disable-line @typescript-eslint/no-explicit-any
+    if (this.redis) return Promise.resolve(this.redis);
 
-    // Prevent multiple initialization attempts
-    if (this.isInitializing) {
-      // Wait for the initialization to complete
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      return this.redis;
+    if (!this._initPromise) {
+      this._initPromise = this._initialize();
     }
+    return this._initPromise;
+  }
 
+  private async _initialize(): Promise<any> { // eslint-disable-line @typescript-eslint/no-explicit-any
     // Skip Redis initialization in Edge Runtime
     if (typeof process !== "undefined" && process.env.NEXT_RUNTIME === "edge") {
       console.log(
@@ -105,7 +105,6 @@ class RedisCache implements CacheStore {
     }
 
     if (typeof window === "undefined") {
-      this.isInitializing = true;
       try {
         // Dynamic import to prevent bundling in Edge Runtime
         const { Redis } = await import("ioredis");
@@ -141,8 +140,6 @@ class RedisCache implements CacheStore {
           error
         );
         this.redis = null;
-      } finally {
-        this.isInitializing = false;
       }
     }
     return this.redis;
@@ -174,7 +171,7 @@ class RedisCache implements CacheStore {
         retryStrategy: (times: number) => Math.min(times * 50, 2000),
         maxRetriesPerRequest: 3,
         lazyConnect: true, // Important: delays connection until first command
-        connectTimeout: 10000,
+        connectTimeout: 2000,
         enableReadyCheck: false, // Avoids waiting for full readiness
       };
     }

@@ -1,5 +1,6 @@
 "use server";
 
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -222,7 +223,7 @@ export async function signOut() {
   }
 }
 
-export async function getCurrentUser() {
+export const getCurrentUser = cache(async () => {
   const supabase = await createClient();
 
   try {
@@ -245,7 +246,7 @@ export async function getCurrentUser() {
     console.error("Get current user error:", error);
     return null;
   }
-}
+});
 
 /**
  * AUTHENTICATION & AUTHORIZATION UTILITIES

@@ -126,27 +126,28 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // For non-admin users, verify they own the image by checking the filename prefix
+    // Verify ownership via database — this is the authoritative check.
+    // The filename-prefix heuristic is removed; only the DB ownership record is trusted.
+    let mediaRecord = null;
     if (user.userData?.role === "USER") {
-      const userPrefix = user.id.substring(0, 8);
-      if (!filename.startsWith(userPrefix)) {
+      mediaRecord = await prisma.media.findFirst({
+        where: {
+          filename: filename,
+          uploadedBy: user.userData.id,
+        },
+      });
+      if (!mediaRecord) {
         return NextResponse.json(
-          { error: "You can only delete your own images" },
+          { error: "Image not found or permission denied" },
           { status: 403 }
         );
       }
+    } else {
+      // Admins can delete any file; look up record only for DB cleanup
+      mediaRecord = await prisma.media.findFirst({
+        where: { filename: filename },
+      });
     }
-
-    // Find the Media record in the database before deletion
-    // Use filename to find the record since it's unique
-    const mediaRecord = await prisma.media.findFirst({
-      where: {
-        filename: filename,
-        ...(user.userData?.role === "USER" && {
-          uploadedBy: user.userData.id, // Additional security check for regular users
-        }),
-      },
-    });
 
     // Convert relative URL to full URL if needed for deletion
     let urlToDelete = imageUrl;

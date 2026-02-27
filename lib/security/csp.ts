@@ -123,11 +123,9 @@ export class CSRFProtection {
    * Compatible with Edge Runtime
    */
   private static async timingSafeEqual(a: string, b: string): Promise<boolean> {
-    if (a.length !== b.length) {
-      return false;
-    }
-
-    // Use Web Crypto API for timing-safe comparison
+    // No early-exit on length — that leaks token length via timing side-channel.
+    // HMAC-SHA256 always produces 32-byte digests regardless of input length,
+    // so the final XOR loop is always constant-time.
     const encoder = new TextEncoder();
     const aBytes = encoder.encode(a);
     const bBytes = encoder.encode(b);
@@ -144,13 +142,9 @@ export class CSRFProtection {
       crypto.subtle.sign("HMAC", key, bBytes),
     ]);
 
-    // Compare the signatures
+    // Both signatures are always 32 bytes (HMAC-SHA256), so no length check needed
     const sigA = new Uint8Array(signatureA);
     const sigB = new Uint8Array(signatureB);
-
-    if (sigA.length !== sigB.length) {
-      return false;
-    }
 
     let result = 0;
     for (let i = 0; i < sigA.length; i++) {

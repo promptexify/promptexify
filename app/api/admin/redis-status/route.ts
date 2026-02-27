@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth";
 import { CacheMetrics, cacheStore } from "@/lib/cache";
 
 // Explicit runtime configuration to ensure Node.js runtime
@@ -10,6 +11,11 @@ export const dynamic = "force-dynamic";
  * GET /api/admin/redis-status
  */
 export async function GET() {
+  const user = await getCurrentUser();
+  if (!user || user.userData?.role !== "ADMIN") {
+    return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+  }
+
   // During the build process, NODE_ENV is 'production', but a Redis URL may not be available.
   // We return a mocked response to allow the build to succeed. At runtime we will attempt to
   // connect using either the provided REDIS_URL or a local instance in development.
