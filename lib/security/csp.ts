@@ -508,14 +508,15 @@ export class SecurityHeaders {
    * Build script-src directive following csp.md approach
    */
   private static buildScriptSrc(nonce?: string, isDevelopment: boolean = false): string {
-    // FIX: Add the specific SHA hash from the error to allow the problematic inline script.
     const scriptSources = [
       "'self'",
-      // Hash of the Next.js theme-detection inline script injected before hydration.
-      // Regenerate with: npm run csp:hash  if the script content changes.
+      // Hashes for the next-themes ThemeProvider inline script that runs before
+      // hydration to prevent FOUC.  The nonce is also passed to ThemeProvider,
+      // but hashes serve as a fallback if the nonce prop is not applied (e.g.
+      // static pages).  Regenerate with: npm run csp:hash
       "'sha256-n46vPwSWuMC0W703pBofImv82Z26xo4LXymv0E9caPk='",
+      "'sha256-J9cZHZf5nVZbsm7Pqxc8RsURv1AIXkMgbhfrZvoOs/A='",
       // Hash of the inline script injected by Google Identity Services (GSI) client.
-      // May need updating when Google changes the GSI library.
       "'sha256-UnthrFpGFotkvMOTp/ghVMSXoZZj9Y6epaMsaBAbUtg='",
       // Google services
       "https://www.googletagmanager.com",
@@ -552,38 +553,29 @@ export class SecurityHeaders {
   }
 
   /**
-   * Build style-src directive following csp.md approach.
+   * Build style-src directive.
    *
-   * Production: nonce-based inline styles only (no unsafe-inline).
-   * Development: unsafe-inline retained for hot-reload / devtools convenience.
+   * Uses 'unsafe-inline' in both development and production because:
+   *  - React style props (`style={{ ... }}`) render as element style *attributes*
+   *  - Radix UI, framer-motion, sonner, and recharts all set inline styles
+   *  - CSP nonces only cover `<style>` elements, NOT style attributes
+   *  - Per CSP spec, when a nonce IS present, 'unsafe-inline' is silently
+   *    ignored — so we intentionally omit the nonce from style-src to ensure
+   *    'unsafe-inline' remains effective
    *
-   * NOTE: React's `style={{ ... }}` renders as style *attributes* on HTML
-   * elements, which are covered by style-src.  Radix UI / shadcn use inline
-   * style attributes for CSS custom properties and animations — these require
-   * either unsafe-inline or (CSP Level 3) unsafe-hashes with pre-computed
-   * hashes.  Until those components are audited and hashed, unsafe-inline is
-   * left in development to avoid breakage.  In production the nonce covers
-   * Next.js <style> elements; remaining inline style *attributes* from UI
-   * libraries are an accepted limitation tracked for future remediation.
+   * This is a widely accepted trade-off: inline styles pose minimal XSS risk
+   * compared to inline scripts, and it is impractical to hash every dynamic
+   * style value produced by third-party UI libraries.
    */
-  private static buildStyleSrc(nonce?: string, isDevelopment: boolean = false): string {
-    const externalStyles = [
+  private static buildStyleSrc(_nonce?: string, _isDevelopment: boolean = false): string {
+    const styleSources = [
       "'self'",
+      "'unsafe-inline'",
       "https://fonts.googleapis.com",
       "https://accounts.google.com",
     ];
 
-    if (isDevelopment) {
-      // In development, use unsafe-inline WITHOUT a nonce so it is not ignored.
-      // Per CSP spec, when a nonce or hash is present, 'unsafe-inline' is
-      // silently ignored — so we must choose one or the other.
-      externalStyles.push("'unsafe-inline'");
-    } else if (nonce) {
-      // In production, use nonce-based inline styles only.
-      externalStyles.push(`'nonce-${nonce}'`);
-    }
-
-    return `style-src ${externalStyles.join(" ")}`;
+    return `style-src ${styleSources.join(" ")}`;
   }
 
   /**

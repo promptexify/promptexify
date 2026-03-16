@@ -28,7 +28,7 @@ export const GridBackground: React.FC<GridBackgroundProps> = ({
     if (!ctx) return;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = `rgba(60, 60, 80, 0.2)`;
+    ctx.strokeStyle = `rgba(60, 60, 80, 0.1)`;
     ctx.lineWidth = 1;
 
     // Draw vertical lines
