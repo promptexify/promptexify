@@ -56,6 +56,8 @@ export {
   getUserFavoritesCountAction,
   getAdminDashboardStatsAction,
   getAllUsersActivityAction,
+  toggleUserDisabledAction,
+  changeUserRoleAction,
 } from "./users";
 
 // Settings actions

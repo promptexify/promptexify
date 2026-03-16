@@ -15,6 +15,13 @@
       "when": 1773620366690,
       "tag": "0001_damp_titanium_man",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1773680952042,
+      "tag": "0002_sticky_dazzler",
+      "breakpoints": true
     }
   ]
 }

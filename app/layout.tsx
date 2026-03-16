@@ -3,10 +3,16 @@ import "./globals.css";
 
 import { ThemeProvider } from "@/components/ui/theme";
 import { Toaster } from "@/components/ui/sonner";
-import { GoogleOneTap } from "@/components/google-one-tap";
-import { GoogleAnalytics } from "@/components/google-analytics";
 import { headers } from "next/headers";
 import { seoConfig } from "@/config/seo";
+import dynamic from "next/dynamic";
+
+const GoogleOneTap = dynamic(
+  () => import("@/components/google-one-tap").then((m) => ({ default: m.GoogleOneTap })),
+);
+const GoogleAnalytics = dynamic(
+  () => import("@/components/google-analytics").then((m) => ({ default: m.GoogleAnalytics })),
+);
 
 export const metadata = seoConfig;
 

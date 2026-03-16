@@ -72,6 +72,7 @@ export const users = pgTable(
     stripeSubscriptionId: text("stripe_subscription_id").unique(),
     stripePriceId: text("stripe_price_id"),
     stripeCurrentPeriodEnd: timestamp("stripe_current_period_end"),
+    disabled: boolean("disabled").default(false).notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().notNull(),
   },

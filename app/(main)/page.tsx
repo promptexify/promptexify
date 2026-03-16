@@ -1,65 +1,54 @@
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { getPostsWithSorting } from "@/lib/content";
+import { getFeaturedPosts } from "@/lib/content";
 import { getCurrentUser } from "@/lib/auth";
 import { Suspense } from "react";
 import { PostMasonrySkeleton } from "@/components/post-masonry-skeleton";
 import { HeroSection } from "@/components/ui/hero-section";
-// import Testimonials from "@/components/ui/testimonials";
-import { BentoGrid } from "@/components/ui/bento-grid";
-import { CtaSection } from "@/components/ui/cta-section";
 import { Container } from "@/components/ui/container";
 import { getSettingsAction } from "@/actions/settings";
 import { SafeAsync } from "@/components/ui/safe-async";
 import { FeaturedPostsClient } from "@/components/featured-posts-client";
+import nextDynamic from "next/dynamic";
+
+const BentoGrid = nextDynamic(
+  () => import("@/components/ui/bento-grid").then((m) => ({ default: m.BentoGrid })),
+);
+const CtaSection = nextDynamic(
+  () => import("@/components/ui/cta-section").then((m) => ({ default: m.CtaSection })),
+);
 
 export const dynamic = "force-dynamic";
 
 async function PostGrid() {
-  try {
-    // Get current user with error handling
-    let currentUser = null;
-    let userId = undefined;
-    let userType = null;
-    
-    try {
-      currentUser = await getCurrentUser();
-      userId = currentUser?.userData?.id;
-      userType = currentUser?.userData?.type || null;
-    } catch (error) {
-      console.warn("Failed to get current user, using anonymous access:", error);
+  const [userResult, settingsResult] = await Promise.allSettled([
+    getCurrentUser(),
+    getSettingsAction(),
+  ]);
+
+  const currentUser =
+    userResult.status === "fulfilled" ? userResult.value : null;
+  const userId = currentUser?.userData?.id;
+  const userType = currentUser?.userData?.type || null;
+
+  let featuredPostsLimit = 12;
+  if (settingsResult.status === "fulfilled") {
+    const s = settingsResult.value;
+    if (s?.success && s.data?.featuredPostsLimit) {
+      featuredPostsLimit = s.data.featuredPostsLimit;
     }
-
-    // Get settings with error handling
-    let featuredPostsLimit = 12; // Default fallback
-    try {
-      const settingsResult = await getSettingsAction();
-      if (settingsResult?.success && settingsResult.data?.featuredPostsLimit) {
-        featuredPostsLimit = settingsResult.data.featuredPostsLimit;
-      }
-    } catch (error) {
-      console.warn("Failed to get settings, using defaults:", error);
-    }
-
-    const posts = await getPostsWithSorting(userId, "latest");
-
-    // Filter for featured posts first and show configurable limit
-    const featuredPosts = posts.filter((post) => post.isFeatured).slice(0, featuredPostsLimit);
-
-    return <FeaturedPostsClient posts={featuredPosts} userType={userType} />;
-  } catch (error) {
-    console.error("Critical error in PostGrid:", error);
-    throw error; // Let the error boundary handle this
   }
+
+  const featuredPosts = await getFeaturedPosts(userId, featuredPostsLimit);
+
+  return <FeaturedPostsClient posts={featuredPosts} userType={userType} />;
 }
 
 export default async function HomePage() {
   return (
     <Container className="min-h-screen bg-background space-y-10 flex flex-col justify-center">
-      {/* Hero Section */}
       <HeroSection />
 
-      {/* Posts Section */}
       <section className="pb-12">
         <div className="mb-8 text-center">
           <h2 className="text-2xl md:text-3xl font-semibold mb-2">
@@ -86,13 +75,8 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Bento Grid Section */}
       <BentoGrid />
 
-      {/* Testimonials Section */}
-      {/* <Testimonials /> */}
-
-      {/* Call to Action Section */}
       <CtaSection />
     </Container>
   );

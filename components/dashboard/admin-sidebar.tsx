@@ -11,10 +11,10 @@ import {
   IconBookmark,
   IconHeart,
   IconRobot,
+  IconUserCircle,
   type Icon,
 } from "@/components/ui/icons";
 import Link from "next/link";
-import { User } from "@/components/ui/icons";
 
 import { NavDocuments } from "@/components/dashboard/nav-documents";
 import { NavMain } from "@/components/dashboard/nav-main";
@@ -119,7 +119,13 @@ const navigationData: {
       title: "Automation",
       url: "/automation",
       icon: IconRobot,
-      adminOnly: true, // Admin only
+      adminOnly: true,
+    },
+    {
+      title: "Users",
+      url: "/users",
+      icon: IconUserCircle,
+      adminOnly: true,
     },
   ],
 };

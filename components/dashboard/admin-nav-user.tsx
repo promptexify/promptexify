@@ -132,16 +132,6 @@ export function NavUser({ user }: { user: User }) {
                   Account
                 </Link>
               </DropdownMenuItem>
-              {userRole === "ADMIN" && (
-                <>
-                  <DropdownMenuItem asChild>
-                    <Link href="/dashboard/notifications">
-                      <IconNotification />
-                      Notifications
-                    </Link>
-                  </DropdownMenuItem>
-                </>
-              )}
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <div className="p-2">

@@ -39,16 +39,16 @@ export async function updateSession(request: NextRequest) {
   // supabase.auth.getUser(). A simple mistake could make it very hard to debug
   // issues with users being randomly logged out.
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const [userResult, sessionResult] = await Promise.all([
+    supabase.auth.getUser(),
+    supabase.auth.getSession(),
+  ]);
+
+  const user = userResult.data.user;
 
   // Proactively refresh session if access token is about to expire (<30s)
   try {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
+    const session = sessionResult.data.session;
     if (session && session.expires_at) {
       const expiresInMs = session.expires_at * 1000 - Date.now();
       if (expiresInMs < 30_000) {

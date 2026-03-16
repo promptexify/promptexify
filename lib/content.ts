@@ -5,7 +5,7 @@ import {
   tags,
   postToTag,
 } from "@/lib/db/schema";
-import { eq, and, or, desc, asc, ilike, sql, isNull } from "drizzle-orm";
+import { eq, and, or, desc, asc, ilike, sql } from "drizzle-orm";
 import { Queries, MetadataQueries } from "@/lib/query";
 import { createCachedFunction, CACHE_TAGS, CACHE_DURATIONS } from "@/lib/cache";
 import { cache } from "react";
@@ -136,6 +136,25 @@ export async function getFeaturedPostIds(limit = 100): Promise<string[]> {
     .orderBy(desc(posts.createdAt))
     .limit(limit);
   return rows.map((p) => p.id);
+}
+
+/**
+ * Fetch only featured published posts (with full details) — avoids the
+ * expensive pattern of fetching 500 posts and filtering client-side.
+ */
+export async function getFeaturedPosts(
+  userId?: string,
+  limit = 12
+): Promise<PostWithInteractions[]> {
+  const result = await Queries.posts.getPaginated({
+    page: 1,
+    limit,
+    includeUnpublished: false,
+    isFeatured: true,
+    userId,
+    sortBy: "latest",
+  });
+  return result.data as unknown as PostWithInteractions[];
 }
 
 export const getPostById = createCachedFunction(
@@ -300,22 +319,40 @@ export interface ParentCategoryNav {
 }
 
 const getParentCategoriesMemoized = cache(async (): Promise<ParentCategoryNav[]> => {
-  const parentRows = await db
-    .select()
-    .from(categories)
-    .where(isNull(categories.parentId))
-    .orderBy(asc(categories.createdAt));
-  const withChildren = await Promise.all(
-    parentRows.map(async (p) => {
-      const children = await db
-        .select({ id: categories.id, name: categories.name, slug: categories.slug })
-        .from(categories)
-        .where(eq(categories.parentId, p.id))
-        .orderBy(asc(categories.createdAt));
-      return { id: p.id, name: p.name, slug: p.slug, children };
+  const allRows = await db
+    .select({
+      id: categories.id,
+      name: categories.name,
+      slug: categories.slug,
+      parentId: categories.parentId,
+      createdAt: categories.createdAt,
     })
-  );
-  return withChildren as ParentCategoryNav[];
+    .from(categories)
+    .orderBy(asc(categories.createdAt));
+
+  const parents: ParentCategoryNav[] = [];
+  const childrenByParent = new Map<string, { id: string; name: string; slug: string }[]>();
+
+  for (const row of allRows) {
+    if (row.parentId) {
+      const siblings = childrenByParent.get(row.parentId) ?? [];
+      siblings.push({ id: row.id, name: row.name, slug: row.slug });
+      childrenByParent.set(row.parentId, siblings);
+    }
+  }
+
+  for (const row of allRows) {
+    if (!row.parentId) {
+      parents.push({
+        id: row.id,
+        name: row.name,
+        slug: row.slug,
+        children: childrenByParent.get(row.id) ?? [],
+      });
+    }
+  }
+
+  return parents;
 });
 
 export const getParentCategories = createCachedFunction(

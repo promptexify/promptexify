@@ -1,13 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Turbopack config for `next dev --turbopack`. Webpack config below is used for `next build`.
-  // serverExternalPackages applies to both. Explicit resolveExtensions so Next.js detects Turbopack config.
   turbopack: {
     resolveExtensions: [".tsx", ".ts", ".jsx", ".js", ".mjs", ".json"],
   },
 
-  // Fix Supabase realtime-js webpack warnings (applies to production build)
   webpack: (config, { isServer, dev }) => {
     if (isServer) {
       config.externals = config.externals || [];
@@ -18,7 +15,6 @@ const nextConfig: NextConfig = {
       });
     }
 
-    // Configure source map generation
     if (!dev && !isServer) {
       config.devtool = "hidden-source-map";
     }
@@ -28,40 +24,12 @@ const nextConfig: NextConfig = {
       { module: /node_modules\/node-gyp-build/ },
       { module: /node_modules\/bufferutil/ },
       { module: /node_modules\/utf-8-validate/ },
-      // Suppress critical dependency warnings for dynamic imports
       { message: /Critical dependency: the request of a dependency is an expression/ },
     ];
-
-    config.optimization = {
-      ...config.optimization,
-      splitChunks: {
-        ...config.optimization?.splitChunks,
-        cacheGroups: {
-          ...config.optimization?.splitChunks?.cacheGroups,
-          largeData: {
-            test: /[\\/](lib|components)[\\/](automation|analytics)[\\/]/,
-            name: "large-data",
-            chunks: "all",
-            priority: 10,
-            enforce: true,
-          },
-        },
-      },
-    };
-
-    // Add rule to handle large JSON/CSV data
-    config.module.rules.push({
-      test: /\.(json|csv)$/,
-      type: "asset/resource",
-      generator: {
-        filename: "static/data/[hash][ext]",
-      },
-    });
 
     return config;
   },
 
-  // External packages for server components
   serverExternalPackages: [
     "@supabase/realtime-js",
     "bufferutil",
@@ -69,26 +37,15 @@ const nextConfig: NextConfig = {
     "ioredis",
   ],
 
-  // TypeScript configuration
   typescript: {
-    // !! WARN !!
-    // Dangerously allow production builds to successfully complete even if
-    // your project has type errors.
-    // !! WARN !!
     ignoreBuildErrors: false,
   },
 
-  // ESLint configuration
   eslint: {
-    // Warning: This allows production builds to successfully complete even if
-    // your project has ESLint errors.
     ignoreDuringBuilds: false,
   },
-  
-  // Image optimization
+
   images: {
-    deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
-    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
     formats: ["image/webp", "image/avif"],
     minimumCacheTTL: 31536000,
     dangerouslyAllowSVG: true,
@@ -96,36 +53,47 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: "https",
-        hostname: "**.s3.amazonaws.com",
-        port: "",
-        pathname: "/**",
-      },
-      {
-        protocol: "https",
-        hostname: "localprompt.s3.us-west-1.amazonaws.com",
-        port: "",
-        pathname: "/**",
-      },
-      {
-        protocol: "https",
-        hostname: "**.cloudfront.net",
-        port: "",
-        pathname: "/**",
+        hostname: "lh3.googleusercontent.com",
       },
       {
         protocol: "https",
         hostname: "**.googleusercontent.com",
-        port: "",
-        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "**.s3.amazonaws.com",
+      },
+      {
+        protocol: "https",
+        hostname: "localprompt.s3.us-west-1.amazonaws.com",
+      },
+      {
+        protocol: "https",
+        hostname: "**.cloudfront.net",
+      },
+      {
+        protocol: "https",
+        hostname: "**.supabase.co",
       },
     ],
   },
 
-  // Security headers for static files following csp.md approach
+  experimental: {
+    optimizePackageImports: [
+      "lucide-react",
+      "@tabler/icons-react",
+      "@radix-ui/react-icons",
+      "recharts",
+      "framer-motion",
+    ],
+  },
+
+  // CSP and security headers are handled dynamically by middleware (with nonces).
+  // Do NOT add a static Content-Security-Policy here — it would create a
+  // duplicate header that conflicts with the middleware's nonce-based CSP.
   async headers() {
     return [
       {
-        // Static uploads - strict CSP for uploaded files
         source: "/uploads/:path*",
         headers: [
           {
@@ -139,7 +107,6 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // API routes - basic CORS headers
         source: "/api/:path*",
         headers: [
           {
@@ -163,7 +130,6 @@ const nextConfig: NextConfig = {
     ];
   },
 
-  // Redirects
   async redirects() {
     return [
       {
@@ -183,7 +149,6 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-
 };
 
 export default nextConfig;

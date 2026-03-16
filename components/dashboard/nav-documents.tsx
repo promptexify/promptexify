@@ -1,6 +1,6 @@
 "use client";
 
-import { IconDots, type Icon } from "@/components/ui/icons";
+import { type Icon } from "@/components/ui/icons";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 
@@ -60,12 +60,12 @@ export function NavDocuments({
             </SidebarMenuItem>
           );
         })}
-        <SidebarMenuItem>
+        {/* <SidebarMenuItem>
           <SidebarMenuButton className="text-sidebar-foreground/70">
             <IconDots className="text-sidebar-foreground/70" />
             <span>More</span>
           </SidebarMenuButton>
-        </SidebarMenuItem>
+        </SidebarMenuItem> */}
       </SidebarMenu>
     </SidebarGroup>
   );

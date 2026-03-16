@@ -25,36 +25,21 @@ export default async function ProtectedLayout({
   children: React.ReactNode;
 }) {
   try {
-    // Enforce authentication at layout level for defense-in-depth security
-    // This ensures all protected routes require authentication by default
-    const user = await requireAuth();
-    
-    // Log successful access to protected area for security monitoring
-    try {
-      const headersList = await headers();
-      const forwardedFor = headersList.get('x-forwarded-for');
-      const realIp = headersList.get('x-real-ip');
-      const clientIp = forwardedFor?.split(',')[0] || realIp || 'unknown';
-      
-      await SecurityEvents.protectedAreaAccess(
-        user.id,
-        clientIp,
-        'dashboard-layout'
-      );
-    } catch (auditError) {
-      // Don't fail the request if audit logging fails
-      console.error('Audit logging failed:', auditError);
-    }
-    
+    const [user, headersList] = await Promise.all([
+      requireAuth(),
+      headers(),
+    ]);
+
+    // Fire-and-forget: audit logging must never block the page render
+    const forwardedFor = headersList.get('x-forwarded-for');
+    const realIp = headersList.get('x-real-ip');
+    const clientIp = forwardedFor?.split(',')[0] || realIp || 'unknown';
+    SecurityEvents.protectedAreaAccess(user.id, clientIp, 'dashboard-layout')
+      ?.catch((e: unknown) => console.error('Audit logging failed:', e));
+
     return <>{children}</>;
   } catch (error) {
-    // Handle authentication errors securely
-    // The requireAuth function will handle redirects, but we catch any
-    // unexpected errors to prevent information disclosure
     console.error('Protected layout error:', error);
-    
-    // Re-throw the error to let Next.js handle it appropriately
-    // This maintains the redirect behavior from requireAuth
     throw error;
   }
 }

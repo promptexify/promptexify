@@ -137,6 +137,7 @@ type PostGetPaginatedParams = PaginationParams & {
   categoryId?: string;
   authorId?: string;
   isPremium?: boolean;
+  isFeatured?: boolean;
   userId?: string;
 };
 
@@ -248,6 +249,7 @@ export class PostQueries {
       categoryId,
       authorId,
       isPremium,
+      isFeatured,
       userId,
       sortBy = "latest",
     } = params;
@@ -257,6 +259,7 @@ export class PostQueries {
     if (!includeUnpublished) conditions.push(eq(posts.isPublished, true));
     if (authorId) conditions.push(eq(posts.authorId, authorId));
     if (isPremium !== undefined) conditions.push(eq(posts.isPremium, isPremium));
+    if (isFeatured !== undefined) conditions.push(eq(posts.isFeatured, isFeatured));
     if (categoryId) {
       const subIds = db.select({ id: categories.id }).from(categories).where(eq(categories.parentId, categoryId));
       const catCond = or(eq(posts.categoryId, categoryId), inArray(posts.categoryId, subIds));
@@ -276,35 +279,36 @@ export class PostQueries {
               ]
             : [desc(posts.createdAt)];
 
-      const rows = await db
-        .select({
-          post: posts,
-          authorId: users.id,
-          authorName: users.name,
-          authorAvatar: users.avatar,
-          authorEmail: users.email,
-          catId: categories.id,
-          catName: categories.name,
-          catSlug: categories.slug,
-          parentId: parentCategory.id,
-          parentName: parentCategory.name,
-          parentSlug: parentCategory.slug,
-        })
-        .from(posts)
-        .leftJoin(users, eq(posts.authorId, users.id))
-        .leftJoin(categories, eq(posts.categoryId, categories.id))
-        .leftJoin(parentCategory, eq(categories.parentId, parentCategory.id))
-        .where(whereClause)
-        .orderBy(...orderByClause)
-        .limit(limit)
-        .offset(skip);
-
-      const countResult = await db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(posts)
-        .leftJoin(categories, eq(posts.categoryId, categories.id))
-        .leftJoin(parentCategory, eq(categories.parentId, parentCategory.id))
-        .where(whereClause);
+      const [rows, countResult] = await Promise.all([
+        db
+          .select({
+            post: posts,
+            authorId: users.id,
+            authorName: users.name,
+            authorAvatar: users.avatar,
+            authorEmail: users.email,
+            catId: categories.id,
+            catName: categories.name,
+            catSlug: categories.slug,
+            parentId: parentCategory.id,
+            parentName: parentCategory.name,
+            parentSlug: parentCategory.slug,
+          })
+          .from(posts)
+          .leftJoin(users, eq(posts.authorId, users.id))
+          .leftJoin(categories, eq(posts.categoryId, categories.id))
+          .leftJoin(parentCategory, eq(categories.parentId, parentCategory.id))
+          .where(whereClause)
+          .orderBy(...orderByClause)
+          .limit(limit)
+          .offset(skip),
+        db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(posts)
+          .leftJoin(categories, eq(posts.categoryId, categories.id))
+          .leftJoin(parentCategory, eq(categories.parentId, parentCategory.id))
+          .where(whereClause),
+      ]);
       const totalCount = Number(countResult[0]?.count ?? 0);
 
       const postIds = rows.map((r) => r.post.id);
@@ -485,35 +489,36 @@ export class PostQueries {
 
     const endTimer = DatabaseMetrics.startQuery();
     try {
-      const rows = await db
-        .select({
-          post: posts,
-          authorId: users.id,
-          authorName: users.name,
-          authorAvatar: users.avatar,
-          authorEmail: users.email,
-          catId: categories.id,
-          catName: categories.name,
-          catSlug: categories.slug,
-          parentId: parentCategory.id,
-          parentName: parentCategory.name,
-          parentSlug: parentCategory.slug,
-        })
-        .from(posts)
-        .leftJoin(users, eq(posts.authorId, users.id))
-        .leftJoin(categories, eq(posts.categoryId, categories.id))
-        .leftJoin(parentCategory, eq(categories.parentId, parentCategory.id))
-        .where(whereClause)
-        .orderBy(...orderByClause)
-        .limit(limit)
-        .offset(skip);
-
-      const countResult = await db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(posts)
-        .leftJoin(categories, eq(posts.categoryId, categories.id))
-        .leftJoin(parentCategory, eq(categories.parentId, parentCategory.id))
-        .where(whereClause);
+      const [rows, countResult] = await Promise.all([
+        db
+          .select({
+            post: posts,
+            authorId: users.id,
+            authorName: users.name,
+            authorAvatar: users.avatar,
+            authorEmail: users.email,
+            catId: categories.id,
+            catName: categories.name,
+            catSlug: categories.slug,
+            parentId: parentCategory.id,
+            parentName: parentCategory.name,
+            parentSlug: parentCategory.slug,
+          })
+          .from(posts)
+          .leftJoin(users, eq(posts.authorId, users.id))
+          .leftJoin(categories, eq(posts.categoryId, categories.id))
+          .leftJoin(parentCategory, eq(categories.parentId, parentCategory.id))
+          .where(whereClause)
+          .orderBy(...orderByClause)
+          .limit(limit)
+          .offset(skip),
+        db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(posts)
+          .leftJoin(categories, eq(posts.categoryId, categories.id))
+          .leftJoin(parentCategory, eq(categories.parentId, parentCategory.id))
+          .where(whereClause),
+      ]);
       const totalCount = Number(countResult[0]?.count ?? 0);
 
       const postIds = rows.map((r) => r.post.id);

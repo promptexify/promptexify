@@ -9,8 +9,7 @@ import {
   categories,
   tags,
 } from "@/lib/db/schema";
-import { eq, and, desc, gte, lt, sql } from "drizzle-orm";
-import { Queries } from "@/lib/query";
+import { eq, and, desc, gte, lt, sql, inArray, aliasedTable } from "drizzle-orm";
 import { requireAuth, getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
@@ -230,12 +229,67 @@ export async function getUserDashboardStatsAction() {
         .limit(5),
     ]);
     const totalBookmarks = bookmarkCountResult[0]?.count ?? 0;
-    const recentFavorites = await Promise.all(
-      favRows.map(async (row) => {
-        const post = await Queries.posts.getById(row.postId);
-        return post ? { id: row.id, createdAt: row.createdAt, post } : null;
-      })
-    ).then((arr) => arr.filter((x): x is NonNullable<typeof x> => x !== null));
+
+    // Batch-fetch post details for recent favorites instead of N+1 getById calls
+    const favPostIds = favRows.map((r) => r.postId);
+    let recentFavorites: { id: string; createdAt: Date; post: Record<string, unknown> }[] = [];
+    if (favPostIds.length > 0) {
+      const parentCategory = aliasedTable(categories, "parent_category");
+      const postRows = await db
+        .select({
+          postId: posts.id,
+          postTitle: posts.title,
+          postSlug: posts.slug,
+          postDescription: posts.description,
+          authorId: users.id,
+          authorName: users.name,
+          authorEmail: users.email,
+          authorAvatar: users.avatar,
+          catId: categories.id,
+          catName: categories.name,
+          catSlug: categories.slug,
+          parentCatId: parentCategory.id,
+          parentCatName: parentCategory.name,
+          parentCatSlug: parentCategory.slug,
+        })
+        .from(posts)
+        .leftJoin(users, eq(posts.authorId, users.id))
+        .leftJoin(categories, eq(posts.categoryId, categories.id))
+        .leftJoin(parentCategory, eq(categories.parentId, parentCategory.id))
+        .where(inArray(posts.id, favPostIds));
+
+      const postMap = new Map(postRows.map((r) => [r.postId, r]));
+      recentFavorites = favRows
+        .map((fav) => {
+          const r = postMap.get(fav.postId);
+          if (!r) return null;
+          return {
+            id: fav.id,
+            createdAt: fav.createdAt,
+            post: {
+              id: r.postId,
+              title: r.postTitle,
+              slug: r.postSlug,
+              description: r.postDescription,
+              author: {
+                id: r.authorId ?? "",
+                name: r.authorName,
+                email: r.authorEmail ?? "",
+                avatar: r.authorAvatar,
+              },
+              category: {
+                id: r.catId ?? "",
+                name: r.catName ?? "",
+                slug: r.catSlug ?? "",
+                parent: r.parentCatId
+                  ? { id: r.parentCatId, name: r.parentCatName ?? "", slug: r.parentCatSlug ?? "" }
+                  : null,
+              },
+            },
+          };
+        })
+        .filter((x): x is NonNullable<typeof x> => x !== null);
+    }
 
     return {
       success: true,
@@ -350,6 +404,7 @@ export async function getAllUsersActivityAction() {
         type: users.type,
         role: users.role,
         oauth: users.oauth,
+        disabled: users.disabled,
         createdAt: users.createdAt,
         updatedAt: users.updatedAt,
       })
@@ -406,13 +461,14 @@ export async function getAllUsersActivityAction() {
     );
 
     const usersActivity = usersWithLastLogin.map((user: (typeof usersWithCounts)[number] & { lastSignInAt: string | null }, index: number) => ({
-      id: index + 1, // Use index for table row ID
-      userId: user.id, // Keep the actual user ID
+      id: index + 1,
+      userId: user.id,
       name: user.name || "Unnamed User",
       email: user.email,
       role: user.role,
       userType: user.type,
       provider: user.oauth,
+      disabled: user.disabled,
       registeredOn: user.createdAt,
       posts: user._count.posts,
       lastLogin: user.lastSignInAt ? new Date(user.lastSignInAt) : null,
@@ -453,77 +509,48 @@ export async function getAdminDashboardStatsAction() {
     }
 
     const now = new Date();
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    const sixtyDaysAgo = new Date(thirtyDaysAgo.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const t30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const t60 = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000).toISOString();
 
-    const count = async (
-      table: typeof posts | typeof users | typeof categories | typeof tags,
-      where?: ReturnType<typeof and>
-    ) => {
-      const q = db.select({ count: sql<number>`count(*)::int` }).from(table);
-      const [row] = where ? await q.where(where) : await q;
-      return row?.count ?? 0;
-    };
-
+    // Conditional aggregation: 12 COUNT queries → 4 (one per table)
     const [
-      totalPosts,
-      totalUsers,
-      totalCategories,
-      totalTags,
-      newPostsThisMonth,
-      newUsersThisMonth,
-      newCategoriesThisMonth,
-      newTagsThisMonth,
-      previousMonthPosts,
-      previousMonthUsers,
-      previousMonthCategories,
-      previousMonthTags,
+      postStats,
+      userStats,
+      catStats,
+      tagStats,
+      bookmarkCountRow,
+      favCountRow,
+      categoryCountRows,
+      recentRows,
     ] = await Promise.all([
-      count(posts, eq(posts.isPublished, true)),
-      count(users),
-      count(categories),
-      count(tags),
-      count(posts, and(eq(posts.isPublished, true), gte(posts.createdAt, thirtyDaysAgo))),
-      count(users, gte(users.createdAt, thirtyDaysAgo)),
-      count(categories, gte(categories.createdAt, thirtyDaysAgo)),
-      count(tags, gte(tags.createdAt, thirtyDaysAgo)),
-      count(
-        posts,
-        and(
-          eq(posts.isPublished, true),
-          gte(posts.createdAt, sixtyDaysAgo),
-          lt(posts.createdAt, thirtyDaysAgo)
-        )
-      ),
-      count(users, and(gte(users.createdAt, sixtyDaysAgo), lt(users.createdAt, thirtyDaysAgo))),
-      count(categories, and(gte(categories.createdAt, sixtyDaysAgo), lt(categories.createdAt, thirtyDaysAgo))),
-      count(tags, and(gte(tags.createdAt, sixtyDaysAgo), lt(tags.createdAt, thirtyDaysAgo))),
-    ]);
-
-    // Calculate growth percentages
-    const calculateGrowthPercentage = (current: number, previous: number) => {
-      if (previous === 0) return current > 0 ? 100 : 0;
-      return Math.round(((current - previous) / previous) * 100 * 100) / 100;
-    };
-
-    const postsGrowth = calculateGrowthPercentage(
-      newPostsThisMonth,
-      previousMonthPosts
-    );
-    const usersGrowth = calculateGrowthPercentage(
-      newUsersThisMonth,
-      previousMonthUsers
-    );
-    const categoriesGrowth = calculateGrowthPercentage(
-      newCategoriesThisMonth,
-      previousMonthCategories
-    );
-    const tagsGrowth = calculateGrowthPercentage(
-      newTagsThisMonth,
-      previousMonthTags
-    );
-
-    const [bookmarkCountRow, favCountRow, categoryCountRows, recentRows] = await Promise.all([
+      db
+        .select({
+          total: sql<number>`count(*) FILTER (WHERE ${posts.isPublished} = true)::int`,
+          thisMonth: sql<number>`count(*) FILTER (WHERE ${posts.isPublished} = true AND ${posts.createdAt} >= ${t30}::timestamptz)::int`,
+          prevMonth: sql<number>`count(*) FILTER (WHERE ${posts.isPublished} = true AND ${posts.createdAt} >= ${t60}::timestamptz AND ${posts.createdAt} < ${t30}::timestamptz)::int`,
+        })
+        .from(posts),
+      db
+        .select({
+          total: sql<number>`count(*)::int`,
+          thisMonth: sql<number>`count(*) FILTER (WHERE ${users.createdAt} >= ${t30}::timestamptz)::int`,
+          prevMonth: sql<number>`count(*) FILTER (WHERE ${users.createdAt} >= ${t60}::timestamptz AND ${users.createdAt} < ${t30}::timestamptz)::int`,
+        })
+        .from(users),
+      db
+        .select({
+          total: sql<number>`count(*)::int`,
+          thisMonth: sql<number>`count(*) FILTER (WHERE ${categories.createdAt} >= ${t30}::timestamptz)::int`,
+          prevMonth: sql<number>`count(*) FILTER (WHERE ${categories.createdAt} >= ${t60}::timestamptz AND ${categories.createdAt} < ${t30}::timestamptz)::int`,
+        })
+        .from(categories),
+      db
+        .select({
+          total: sql<number>`count(*)::int`,
+          thisMonth: sql<number>`count(*) FILTER (WHERE ${tags.createdAt} >= ${t30}::timestamptz)::int`,
+          prevMonth: sql<number>`count(*) FILTER (WHERE ${tags.createdAt} >= ${t60}::timestamptz AND ${tags.createdAt} < ${t30}::timestamptz)::int`,
+        })
+        .from(tags),
       db.select({ count: sql<number>`count(*)::int` }).from(bookmarks),
       db.select({ count: sql<number>`count(*)::int` }).from(favorites),
       db
@@ -550,6 +577,22 @@ export async function getAdminDashboardStatsAction() {
         .orderBy(desc(posts.createdAt))
         .limit(5),
     ]);
+
+    const ps = postStats[0] ?? { total: 0, thisMonth: 0, prevMonth: 0 };
+    const us = userStats[0] ?? { total: 0, thisMonth: 0, prevMonth: 0 };
+    const cs = catStats[0] ?? { total: 0, thisMonth: 0, prevMonth: 0 };
+    const ts = tagStats[0] ?? { total: 0, thisMonth: 0, prevMonth: 0 };
+
+    const calculateGrowthPercentage = (current: number, previous: number) => {
+      if (previous === 0) return current > 0 ? 100 : 0;
+      return Math.round(((current - previous) / previous) * 100 * 100) / 100;
+    };
+
+    const postsGrowth = calculateGrowthPercentage(ps.thisMonth, ps.prevMonth);
+    const usersGrowth = calculateGrowthPercentage(us.thisMonth, us.prevMonth);
+    const categoriesGrowth = calculateGrowthPercentage(cs.thisMonth, cs.prevMonth);
+    const tagsGrowth = calculateGrowthPercentage(ts.thisMonth, ts.prevMonth);
+
     const totalBookmarks = bookmarkCountRow[0]?.count ?? 0;
     const totalFavorites = favCountRow[0]?.count ?? 0;
     const popularCategories = categoryCountRows.map((r) => ({
@@ -569,23 +612,23 @@ export async function getAdminDashboardStatsAction() {
       data: {
         // Main statistics
         posts: {
-          total: totalPosts,
-          newThisMonth: newPostsThisMonth,
+          total: ps.total,
+          newThisMonth: ps.thisMonth,
           growthPercentage: postsGrowth,
         },
         users: {
-          total: totalUsers,
-          newThisMonth: newUsersThisMonth,
+          total: us.total,
+          newThisMonth: us.thisMonth,
           growthPercentage: usersGrowth,
         },
         categories: {
-          total: totalCategories,
-          newThisMonth: newCategoriesThisMonth,
+          total: cs.total,
+          newThisMonth: cs.thisMonth,
           growthPercentage: categoriesGrowth,
         },
         tags: {
-          total: totalTags,
-          newThisMonth: newTagsThisMonth,
+          total: ts.total,
+          newThisMonth: ts.thisMonth,
           growthPercentage: tagsGrowth,
         },
 
@@ -602,6 +645,128 @@ export async function getAdminDashboardStatsAction() {
     return {
       success: false,
       error: "Failed to load dashboard statistics. Please try again.",
+    };
+  }
+}
+
+/**
+ * Toggle the disabled status of a user (admin only).
+ * Prevents an admin from disabling themselves.
+ */
+export async function toggleUserDisabledAction(targetUserId: string) {
+  try {
+    const currentUser = await getCurrentUser();
+    if (!currentUser?.userData) {
+      return { success: false, error: "User not authenticated" };
+    }
+
+    if (currentUser.userData.role !== "ADMIN") {
+      return { success: false, error: "Admin access required" };
+    }
+
+    if (currentUser.id === targetUserId) {
+      return { success: false, error: "You cannot disable your own account" };
+    }
+
+    const [targetUser] = await db
+      .select({ id: users.id, disabled: users.disabled })
+      .from(users)
+      .where(eq(users.id, targetUserId))
+      .limit(1);
+
+    if (!targetUser) {
+      return { success: false, error: "User not found" };
+    }
+
+    const newDisabledState = !targetUser.disabled;
+
+    await db
+      .update(users)
+      .set({ disabled: newDisabledState, updatedAt: new Date() })
+      .where(eq(users.id, targetUserId));
+
+    revalidatePath("/users");
+    revalidatePath("/dashboard");
+
+    return {
+      success: true,
+      message: newDisabledState
+        ? "User has been disabled"
+        : "User has been enabled",
+      disabled: newDisabledState,
+    };
+  } catch (error) {
+    console.error("Toggle user disabled error:", error);
+    return {
+      success: false,
+      error: "Failed to update user status. Please try again.",
+    };
+  }
+}
+
+/**
+ * Change the role of a user (admin only).
+ * Only ADMINs can promote a USER to ADMIN or demote an ADMIN to USER.
+ * An admin cannot change their own role.
+ */
+export async function changeUserRoleAction(
+  targetUserId: string,
+  newRole: "USER" | "ADMIN"
+) {
+  try {
+    const currentUser = await getCurrentUser();
+    if (!currentUser?.userData) {
+      return { success: false, error: "User not authenticated" };
+    }
+
+    if (currentUser.userData.role !== "ADMIN") {
+      return { success: false, error: "Admin access required" };
+    }
+
+    if (currentUser.id === targetUserId) {
+      return { success: false, error: "You cannot change your own role" };
+    }
+
+    if (newRole !== "USER" && newRole !== "ADMIN") {
+      return { success: false, error: "Invalid role specified" };
+    }
+
+    const [targetUser] = await db
+      .select({ id: users.id, role: users.role })
+      .from(users)
+      .where(eq(users.id, targetUserId))
+      .limit(1);
+
+    if (!targetUser) {
+      return { success: false, error: "User not found" };
+    }
+
+    if (targetUser.role === newRole) {
+      return { success: false, error: `User already has the ${newRole} role` };
+    }
+
+    if (targetUser.role === "ADMIN" && newRole === "USER") {
+      return { success: false, error: "You cannot demote another admin" };
+    }
+
+    await db
+      .update(users)
+      .set({ role: newRole, updatedAt: new Date() })
+      .where(eq(users.id, targetUserId));
+
+    revalidatePath("/users");
+    revalidatePath("/dashboard");
+
+    return {
+      success: true,
+      message: `User role changed to ${newRole}`,
+      role: newRole,
+    };
+  } catch (error) {
+    console.error("Change user role error:", error);
+    return {
+      success: false,
+      error: "Failed to change user role. Please try again.",
     };
   }
 }
