@@ -18,6 +18,8 @@ interface DirectoryClientWrapperProps {
     totalCount: number;
     hasNextPage: boolean;
   };
+  categoryName?: string;
+  categoryDescription?: string;
 }
 
 export function DirectoryClientWrapper({
@@ -25,15 +27,20 @@ export function DirectoryClientWrapper({
   userType,
   pageSize,
   pagination,
+  categoryName,
+  categoryDescription,
 }: DirectoryClientWrapperProps) {
   return (
     <Container>
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-start md:justify-between mb-8 gap-4">
         <div className="flex-1">
-          <h1 className="text-2xl font-bold mb-2">Prompt Directory</h1>
+          <h1 className="text-2xl font-bold mb-2">
+            {categoryName ?? "Prompt Directory"}
+          </h1>
           <p className="text-muted-foreground text-lg max-w-2xl">
-            Find the perfect prompt for your creative and professional needs.
+            {categoryDescription ??
+              "Find the perfect prompt for your creative and professional needs."}
           </p>
         </div>
         <div className="flex items-center gap-2">

@@ -1,7 +1,21 @@
 import { relations } from "drizzle-orm/relations";
-import { users, posts, categories, bookmarks, media, favorites, postToTag, tags } from "./schema";
+import { posts, favorites, users, media, categories, bookmarks, postToTag, tags } from "./schema";
+
+export const favoritesRelations = relations(favorites, ({one}) => ({
+	post: one(posts, {
+		fields: [favorites.postId],
+		references: [posts.id]
+	}),
+	user: one(users, {
+		fields: [favorites.userId],
+		references: [users.id]
+	}),
+}));
 
 export const postsRelations = relations(posts, ({one, many}) => ({
+	favorites: many(favorites),
+	media: many(media),
+	bookmarks: many(bookmarks),
 	user: one(users, {
 		fields: [posts.authorId],
 		references: [users.id]
@@ -10,39 +24,13 @@ export const postsRelations = relations(posts, ({one, many}) => ({
 		fields: [posts.categoryId],
 		references: [categories.id]
 	}),
-	bookmarks: many(bookmarks),
-	media: many(media),
-	favorites: many(favorites),
 	postToTags: many(postToTag),
 }));
 
 export const usersRelations = relations(users, ({many}) => ({
-	posts: many(posts),
-	bookmarks: many(bookmarks),
 	favorites: many(favorites),
-}));
-
-export const categoriesRelations = relations(categories, ({one, many}) => ({
+	bookmarks: many(bookmarks),
 	posts: many(posts),
-	category: one(categories, {
-		fields: [categories.parentId],
-		references: [categories.id],
-		relationName: "categories_parentId_categories_id"
-	}),
-	categories: many(categories, {
-		relationName: "categories_parentId_categories_id"
-	}),
-}));
-
-export const bookmarksRelations = relations(bookmarks, ({one}) => ({
-	post: one(posts, {
-		fields: [bookmarks.postId],
-		references: [posts.id]
-	}),
-	user: one(users, {
-		fields: [bookmarks.userId],
-		references: [users.id]
-	}),
 }));
 
 export const mediaRelations = relations(media, ({one}) => ({
@@ -52,13 +40,25 @@ export const mediaRelations = relations(media, ({one}) => ({
 	}),
 }));
 
-export const favoritesRelations = relations(favorites, ({one}) => ({
+export const categoriesRelations = relations(categories, ({one, many}) => ({
+	category: one(categories, {
+		fields: [categories.parentId],
+		references: [categories.id],
+		relationName: "categories_parentId_categories_id"
+	}),
+	categories: many(categories, {
+		relationName: "categories_parentId_categories_id"
+	}),
+	posts: many(posts),
+}));
+
+export const bookmarksRelations = relations(bookmarks, ({one}) => ({
 	post: one(posts, {
-		fields: [favorites.postId],
+		fields: [bookmarks.postId],
 		references: [posts.id]
 	}),
 	user: one(users, {
-		fields: [favorites.userId],
+		fields: [bookmarks.userId],
 		references: [users.id]
 	}),
 }));

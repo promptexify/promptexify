@@ -119,6 +119,19 @@ async function DirectoryContent({
       categoryId = category?.id;
     }
 
+    // Resolve parent category metadata for the header
+    let activeCategoryName: string | undefined;
+    let activeCategoryDescription: string | undefined;
+    if (categoryFilter && categoryFilter !== "all") {
+      const matchedCategory = categories.find(
+        (c) => c.slug === categoryFilter
+      );
+      if (matchedCategory) {
+        activeCategoryName = matchedCategory.name;
+        activeCategoryDescription = matchedCategory.description ?? undefined;
+      }
+    }
+
     // Handle premium filter
     let isPremium: boolean | undefined;
     if (premiumFilter === "premium") {
@@ -158,6 +171,8 @@ async function DirectoryContent({
         userType={userType}
         pageSize={postsPageSize}
         pagination={pagination}
+        categoryName={activeCategoryName}
+        categoryDescription={activeCategoryDescription}
       />
     );
   } catch (error) {

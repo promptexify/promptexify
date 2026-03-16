@@ -26,7 +26,7 @@ function createClient() {
   return postgres(connectionString, {
     prepare: process.env.DATABASE_POOLER_MODE === "transaction" ? false : true,
     max: 10,
-    ssl: isProduction ? "require" : false,
+    ssl: "require",
   });
 }
 

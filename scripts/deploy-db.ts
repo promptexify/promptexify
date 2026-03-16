@@ -30,7 +30,11 @@ async function main() {
 
   // Step 1: Apply RLS helper functions
   console.log("[1/2] Applying RLS helper functions...");
-  const sql = postgres(connectionString, { max: 1 });
+  const requiresSsl = connectionString.includes("supabase.com");
+  const sql = postgres(connectionString, {
+    max: 1,
+    ssl: requiresSsl ? "require" : false,
+  });
 
   try {
     const rlsSql = readFileSync(
