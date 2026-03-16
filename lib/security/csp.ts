@@ -511,11 +511,13 @@ export class SecurityHeaders {
     // FIX: Add the specific SHA hash from the error to allow the problematic inline script.
     const scriptSources = [
       "'self'",
-      // SHA-256 hash of the Next.js __NEXT_DATA__ / theme-detection inline script
-      // injected before hydration (e.g. document.documentElement.classList.add("dark")).
+      // Hash of the Next.js theme-detection inline script injected before hydration.
       // Regenerate with: npm run csp:hash  if the script content changes.
       "'sha256-n46vPwSWuMC0W703pBofImv82Z26xo4LXymv0E9caPk='",
-            // Google services
+      // Hash of the inline script injected by Google Identity Services (GSI) client.
+      // May need updating when Google changes the GSI library.
+      "'sha256-UnthrFpGFotkvMOTp/ghVMSXoZZj9Y6epaMsaBAbUtg='",
+      // Google services
       "https://www.googletagmanager.com",
       "https://www.google-analytics.com",
       "https://googleads.g.doubleclick.net",
@@ -571,13 +573,14 @@ export class SecurityHeaders {
       "https://accounts.google.com",
     ];
 
-    if (nonce) {
-      externalStyles.push(`'nonce-${nonce}'`);
-    }
-
     if (isDevelopment) {
-      // Allow unsafe-inline in development for hot-reload / devtools
+      // In development, use unsafe-inline WITHOUT a nonce so it is not ignored.
+      // Per CSP spec, when a nonce or hash is present, 'unsafe-inline' is
+      // silently ignored — so we must choose one or the other.
       externalStyles.push("'unsafe-inline'");
+    } else if (nonce) {
+      // In production, use nonce-based inline styles only.
+      externalStyles.push(`'nonce-${nonce}'`);
     }
 
     return `style-src ${externalStyles.join(" ")}`;

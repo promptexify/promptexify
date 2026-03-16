@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { createUserInDatabaseAction } from "@/actions/auth";
@@ -15,11 +15,22 @@ declare global {
           initialize: (config: {
             client_id: string;
             callback: (response: { credential: string }) => void;
+            nonce?: string;
             auto_select?: boolean;
             cancel_on_tap_outside?: boolean;
             use_fedcm_for_prompt?: boolean;
+            itp_support?: boolean;
           }) => void;
-          prompt: () => void;
+          prompt: (
+            momentListener?: (notification: {
+              isNotDisplayed: () => boolean;
+              isSkippedMoment: () => boolean;
+              isDismissedMoment: () => boolean;
+              getNotDisplayedReason: () => string;
+              getSkippedReason: () => string;
+              getDismissedReason: () => string;
+            }) => void
+          ) => void;
           cancel: () => void;
         };
       };
@@ -27,214 +38,153 @@ declare global {
   }
 }
 
-// Utility function to check network connectivity
-const checkNetworkConnectivity = async (): Promise<boolean> => {
-  try {
-    // Try to fetch a small resource to test connectivity
-    await fetch("https://www.google.com/favicon.ico", {
-      method: "HEAD",
-      mode: "no-cors",
-    });
-    return true;
-  } catch (error) {
-    console.warn("Network connectivity check failed:", error);
-    return false;
-  }
-};
+const GSI_SCRIPT_URL = "https://accounts.google.com/gsi/client";
+const GSI_SCRIPT_ID = "google-one-tap-gsi";
+
+/**
+ * SHA-256 hash a string and return the hex digest.
+ * Google receives the hash in initialize(); Supabase receives the raw value
+ * in signInWithIdToken() and hashes it server-side for comparison.
+ */
+async function sha256Hex(message: string): Promise<string> {
+  const data = new TextEncoder().encode(message);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
 
 export function GoogleOneTap() {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const supabase = createClient();
-  const [nonce] = useState(() => {
-    // Get nonce from global variable set in layout
-    return typeof window !== "undefined" ? window.__CSP_NONCE__ || null : null;
-  });
-  const [scriptLoaded, setScriptLoaded] = useState(false);
-  const [scriptError, setScriptError] = useState<string | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
-  const [isNetworkAvailable, setIsNetworkAvailable] = useState(true);
+  const supabaseRef = useRef(createClient());
+  const initializedRef = useRef(false);
+  const scriptLoadingRef = useRef(false);
+  const nonceRef = useRef<string>(crypto.randomUUID());
 
-  const initializeGoogleOneTap = useCallback(async () => {
-    // Check network connectivity first
-    const networkAvailable = await checkNetworkConnectivity();
-    setIsNetworkAvailable(networkAvailable);
+  useEffect(() => {
+    if (loading || user) return;
+    if (initializedRef.current) return;
 
-    if (!networkAvailable) {
-      console.warn("Google One Tap: Network connectivity issues detected");
-      return;
-    }
-
-    // Check if Google Client ID is configured
-    if (!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) {
+    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+    if (!clientId) {
       console.warn(
         "Google One Tap: NEXT_PUBLIC_GOOGLE_CLIENT_ID not configured"
       );
       return;
     }
 
-    // Check if script is already loaded
-    if (window.google?.accounts?.id) {
-      setScriptLoaded(true);
-      return;
-    }
+    initializedRef.current = true;
+    const supabase = supabaseRef.current;
+    const rawNonce = nonceRef.current;
+    const cspNonce =
+      typeof window !== "undefined"
+        ? window.__CSP_NONCE__ || undefined
+        : undefined;
 
-    // Load Google One Tap script with nonce if available
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.defer = true;
-    if (nonce) {
-      script.nonce = nonce;
-    }
+    const handleCredential = async (response: { credential: string }) => {
+      try {
+        const { data, error } = await supabase.auth.signInWithIdToken({
+          provider: "google",
+          token: response.credential,
+          nonce: rawNonce,
+        });
 
-    // Add error handling for script loading
-    script.onerror = () => {
-      const error =
-        "Google One Tap: Failed to load Google Identity Services script";
-      console.error(error);
-      setScriptError(error);
+        if (error) {
+          console.error("Google One Tap sign-in error:", error.message);
+          return;
+        }
 
-      // Retry logic for script loading failures
-      if (retryCount < 2) {
-        setTimeout(
-          () => {
-            setRetryCount((prev) => prev + 1);
-            console.log(
-              `Google One Tap: Retrying script load (attempt ${retryCount + 2})`
-            );
-          },
-          2000 * (retryCount + 1)
-        ); // Exponential backoff
+        if (data.user) {
+          const result = await createUserInDatabaseAction(data.user);
+          if (result.error) {
+            console.error("Failed to sync user to database:", result.error);
+          }
+          router.push("/");
+        }
+      } catch (err) {
+        console.error("Google One Tap error:", err);
       }
     };
 
-    script.onload = () => {
-      setScriptLoaded(true);
-      setScriptError(null);
-      setRetryCount(0);
+    const initAndPrompt = async () => {
+      if (!window.google?.accounts?.id) return;
 
-      if (window.google?.accounts?.id) {
-        try {
-          window.google.accounts.id.initialize({
-            client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
-            use_fedcm_for_prompt: true,
-            callback: async (response) => {
-              try {
-                console.log(
-                  "Google One Tap: Received credential, attempting sign-in..."
-                );
+      const hashedNonce = await sha256Hex(rawNonce);
 
-                const { data, error } = await supabase.auth.signInWithIdToken({
-                  provider: "google",
-                  token: response.credential,
-                });
+      window.google.accounts.id.initialize({
+        client_id: clientId,
+        callback: handleCredential,
+        nonce: hashedNonce,
+        auto_select: false,
+        cancel_on_tap_outside: true,
+        itp_support: true,
+        use_fedcm_for_prompt: true,
+      });
 
-                if (!error && data.user) {
-                  console.log(
-                    "Google One Tap: Sign-in successful, creating user in database..."
-                  );
-
-                  // Create or update user in the database
-                  const result = await createUserInDatabaseAction(data.user);
-
-                  if (result.error) {
-                    console.error(
-                      "Failed to create user in database:",
-                      result.error
-                    );
-                  } else {
-                    console.log(
-                      "Google One Tap: User created/updated in database successfully"
-                    );
-                  }
-
-                  // Redirect to home page regardless of database creation result
-                  // to prevent blocking user access
-                  router.push("/");
-                }
-
-                if (error) {
-                  console.error("Google One Tap sign-in error:", error);
-                }
-              } catch (err) {
-                console.error("Google One Tap error:", err);
-              }
-            },
-            auto_select: false,
-            cancel_on_tap_outside: true,
-          });
-
-          // Show the One Tap prompt with error handling
-          try {
-            console.log("Google One Tap: Showing prompt...");
-            window.google.accounts.id.prompt();
-          } catch (promptError) {
-            console.error(
-              "Google One Tap: Failed to show prompt:",
-              promptError
-            );
-          }
-        } catch (initError) {
-          console.error("Google One Tap: Failed to initialize:", initError);
+      window.google.accounts.id.prompt((notification) => {
+        if (notification.isNotDisplayed()) {
+          console.info(
+            "Google One Tap not displayed:",
+            notification.getNotDisplayedReason()
+          );
+        } else if (notification.isSkippedMoment()) {
+          console.info(
+            "Google One Tap skipped:",
+            notification.getSkippedReason()
+          );
+        } else if (notification.isDismissedMoment()) {
+          console.info(
+            "Google One Tap dismissed:",
+            notification.getDismissedReason()
+          );
         }
-      } else {
-        const error = "Google One Tap: Google Identity Services not available";
-        console.error(error);
-        setScriptError(error);
-      }
+      });
+    };
+
+    if (window.google?.accounts?.id) {
+      initAndPrompt();
+      return;
+    }
+
+    if (scriptLoadingRef.current || document.getElementById(GSI_SCRIPT_ID)) {
+      return;
+    }
+
+    scriptLoadingRef.current = true;
+
+    const script = document.createElement("script");
+    script.id = GSI_SCRIPT_ID;
+    script.src = GSI_SCRIPT_URL;
+    script.async = true;
+    script.defer = true;
+    if (cspNonce) {
+      script.nonce = cspNonce;
+    }
+
+    script.onload = () => {
+      scriptLoadingRef.current = false;
+      initAndPrompt();
+    };
+
+    script.onerror = () => {
+      scriptLoadingRef.current = false;
+      console.error("Google One Tap: Failed to load GSI script");
     };
 
     document.head.appendChild(script);
 
     return () => {
-      if (document.head.contains(script)) {
-        document.head.removeChild(script);
+      try {
+        window.google?.accounts?.id?.cancel();
+      } catch {
+        // Ignore cancel errors during cleanup
       }
-      // Cancel One Tap if component unmounts
-      if (window.google?.accounts?.id?.cancel) {
-        try {
-          window.google.accounts.id.cancel();
-        } catch (cancelError) {
-          console.error("Google One Tap: Failed to cancel:", cancelError);
-        }
-      }
+      initializedRef.current = false;
+      scriptLoadingRef.current = false;
+      nonceRef.current = crypto.randomUUID();
     };
-  }, [supabase.auth, nonce, router, retryCount]);
+  }, [user, loading, router]);
 
-  useEffect(() => {
-    // Only show for unauthenticated users
-    if (loading || user) return;
-
-    initializeGoogleOneTap();
-  }, [user, loading, initializeGoogleOneTap]);
-
-  // Debug logging in development
-  useEffect(() => {
-    if (process.env.NODE_ENV === "development") {
-      console.log("Google One Tap Debug:", {
-        user: !!user,
-        loading,
-        scriptLoaded,
-        scriptError,
-        hasGoogleClientId: !!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
-        nonce: !!nonce,
-        retryCount,
-        isNetworkAvailable,
-        googleAvailable: !!window.google?.accounts?.id,
-        timestamp: new Date().toISOString(),
-      });
-    }
-  }, [
-    user,
-    loading,
-    scriptLoaded,
-    scriptError,
-    nonce,
-    retryCount,
-    isNetworkAvailable,
-  ]);
-
-  // This component doesn't render anything visible
   return null;
 }
