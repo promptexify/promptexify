@@ -22,9 +22,11 @@ function createClient() {
   if (!connectionString) {
     throw new Error("DATABASE_URL is not set");
   }
+  const isProduction = process.env.NODE_ENV === "production";
   return postgres(connectionString, {
     prepare: process.env.DATABASE_POOLER_MODE === "transaction" ? false : true,
     max: 10,
+    ssl: isProduction ? "require" : false,
   });
 }
 
