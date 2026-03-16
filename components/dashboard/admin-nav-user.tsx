@@ -2,7 +2,6 @@
 
 import {
   IconDotsVertical,
-  IconNotification,
   IconUserCircle,
 } from "@/components/ui/icons";
 import Link from "next/link";

@@ -33,8 +33,9 @@ interface UserStatsCardsProps {
         id: string;
         name: string;
         slug: string;
+        parent?: { id: string; name: string; slug: string } | null;
       };
-      tags: Array<{
+      tags?: Array<{
         id: string;
         name: string;
         slug: string;
@@ -146,7 +147,7 @@ export function UserStatsCards({
                     <Badge variant="secondary" className="text-xs">
                       {favorite.post.category.name}
                     </Badge>
-                    {favorite.post.tags.slice(0, 2).map((tag) => (
+                    {favorite.post.tags?.slice(0, 2).map((tag) => (
                       <Badge
                         key={tag.slug}
                         variant="outline"
@@ -155,9 +156,9 @@ export function UserStatsCards({
                         {tag.name}
                       </Badge>
                     ))}
-                    {favorite.post.tags.length > 2 && (
+                    {(favorite.post.tags?.length ?? 0) > 2 && (
                       <span className="text-xs">
-                        +{favorite.post.tags.length - 2} more
+                        +{(favorite.post.tags?.length ?? 0) - 2} more
                       </span>
                     )}
                   </div>

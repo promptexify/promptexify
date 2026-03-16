@@ -232,7 +232,18 @@ export async function getUserDashboardStatsAction() {
 
     // Batch-fetch post details for recent favorites instead of N+1 getById calls
     const favPostIds = favRows.map((r) => r.postId);
-    let recentFavorites: { id: string; createdAt: Date; post: Record<string, unknown> }[] = [];
+    let recentFavorites: {
+      id: string;
+      createdAt: Date;
+      post: {
+        id: string;
+        title: string;
+        slug: string;
+        description: string | null;
+        author: { id: string; name: string | null; email: string; avatar: string | null };
+        category: { id: string; name: string; slug: string; parent: { id: string; name: string; slug: string } | null };
+      };
+    }[] = [];
     if (favPostIds.length > 0) {
       const parentCategory = aliasedTable(categories, "parent_category");
       const postRows = await db
