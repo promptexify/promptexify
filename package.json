@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build",
+    "build": "tsx scripts/seed-migrations.ts && drizzle-kit migrate && next build",
     "start": "next start",
     "lint": "next lint",
     "db:migrate": "drizzle-kit migrate",
