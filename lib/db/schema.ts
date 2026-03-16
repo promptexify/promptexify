@@ -1,6 +1,11 @@
 /**
  * Drizzle schema matching existing Prisma/Postgres tables.
  * Column names follow Prisma defaults (camelCase unless @map in schema).
+ *
+ * RLS policies mirror the original Prisma migration policies and protect
+ * data when accessed via the Supabase PostgREST API (anon/authenticated).
+ * Server-side Drizzle queries use a role with BYPASSRLS so they are
+ * unaffected, but RLS acts as a defense-in-depth layer.
  */
 
 import {
@@ -14,9 +19,11 @@ import {
   pgEnum,
   uniqueIndex,
   index,
+  pgPolicy,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { relations } from "drizzle-orm";
+import { authenticatedRole } from "drizzle-orm/supabase";
 
 // -----------------------------------------------------------------------------
 // Enums (match Prisma schema)
@@ -37,6 +44,15 @@ export const storageTypeEnum = pgEnum("StorageType", ["S3", "LOCAL", "DOSPACE"])
 // Type aliases for use outside schema (replacing Prisma enums)
 export type PostStatus = "DRAFT" | "PENDING_APPROVAL" | "APPROVED" | "REJECTED";
 export type StorageType = "S3" | "LOCAL" | "DOSPACE";
+
+// -----------------------------------------------------------------------------
+// Reusable SQL fragments for RLS policies
+// -----------------------------------------------------------------------------
+
+const authUid = sql`auth.uid()::text`;
+const isAdmin = sql`current_user_is_admin()`;
+const isOwnerOrAdmin = (col: string) =>
+  sql.raw(`("${col}" = auth.uid()::text OR current_user_is_admin())`);
 
 // -----------------------------------------------------------------------------
 // Users
@@ -66,11 +82,37 @@ export const users = pgTable(
     index("users_stripe_customer_id_idx").on(t.stripeCustomerId),
     index("users_type_role_idx").on(t.type, t.role),
     index("users_created_at_desc_idx").on(t.createdAt),
+    // RLS policies
+    pgPolicy("users_select_own_or_admin", {
+      as: "permissive",
+      for: "select",
+      to: "public",
+      using: sql`id = ${authUid} OR ${isAdmin}`,
+    }),
+    pgPolicy("users_insert_own", {
+      as: "permissive",
+      for: "insert",
+      to: "public",
+      withCheck: sql`id = ${authUid}`,
+    }),
+    pgPolicy("users_update_own", {
+      as: "permissive",
+      for: "update",
+      to: "public",
+      using: sql`id = ${authUid}`,
+      withCheck: sql`id = ${authUid}`,
+    }),
+    pgPolicy("users_delete_admin_only", {
+      as: "permissive",
+      for: "delete",
+      to: "public",
+      using: isAdmin,
+    }),
   ]
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
-// Categories
+// Categories (read all; write admin only)
 // -----------------------------------------------------------------------------
 
 export const categories = pgTable(
@@ -89,11 +131,36 @@ export const categories = pgTable(
     index("categories_name_idx").on(t.name),
     index("categories_slug_idx").on(t.slug),
     index("categories_parent_id_name_idx").on(t.parentId, t.name),
+    pgPolicy("categories_select_all", {
+      as: "permissive",
+      for: "select",
+      to: "public",
+      using: sql`true`,
+    }),
+    pgPolicy("categories_insert_admin", {
+      as: "permissive",
+      for: "insert",
+      to: "public",
+      withCheck: isAdmin,
+    }),
+    pgPolicy("categories_update_admin", {
+      as: "permissive",
+      for: "update",
+      to: "public",
+      using: isAdmin,
+      withCheck: isAdmin,
+    }),
+    pgPolicy("categories_delete_admin", {
+      as: "permissive",
+      for: "delete",
+      to: "public",
+      using: isAdmin,
+    }),
   ]
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
-// Tags
+// Tags (read all; write admin only)
 // -----------------------------------------------------------------------------
 
 export const tags = pgTable(
@@ -109,11 +176,36 @@ export const tags = pgTable(
     index("tags_name_idx").on(t.name),
     index("tags_slug_idx").on(t.slug),
     index("tags_created_at_desc_idx").on(t.createdAt),
+    pgPolicy("tags_select_all", {
+      as: "permissive",
+      for: "select",
+      to: "public",
+      using: sql`true`,
+    }),
+    pgPolicy("tags_insert_admin", {
+      as: "permissive",
+      for: "insert",
+      to: "public",
+      withCheck: isAdmin,
+    }),
+    pgPolicy("tags_update_admin", {
+      as: "permissive",
+      for: "update",
+      to: "public",
+      using: isAdmin,
+      withCheck: isAdmin,
+    }),
+    pgPolicy("tags_delete_admin", {
+      as: "permissive",
+      for: "delete",
+      to: "public",
+      using: isAdmin,
+    }),
   ]
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
-// Posts
+// Posts (public read published; author/admin full access; authenticated insert)
 // -----------------------------------------------------------------------------
 
 export const posts = pgTable(
@@ -165,11 +257,36 @@ export const posts = pgTable(
       t.status,
       t.createdAt
     ),
+    pgPolicy("posts_select_published_or_own_or_admin", {
+      as: "permissive",
+      for: "select",
+      to: "public",
+      using: sql`"isPublished" = true OR "authorId" = ${authUid} OR ${isAdmin}`,
+    }),
+    pgPolicy("posts_insert_authenticated", {
+      as: "permissive",
+      for: "insert",
+      to: authenticatedRole,
+      withCheck: sql`"authorId" = ${authUid}`,
+    }),
+    pgPolicy("posts_update_author_or_admin", {
+      as: "permissive",
+      for: "update",
+      to: "public",
+      using: sql`${isOwnerOrAdmin("authorId")}`,
+      withCheck: sql`${isOwnerOrAdmin("authorId")}`,
+    }),
+    pgPolicy("posts_delete_author_or_admin", {
+      as: "permissive",
+      for: "delete",
+      to: "public",
+      using: sql`${isOwnerOrAdmin("authorId")}`,
+    }),
   ]
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
-// Post <-> Tag many-to-many (Prisma implicit table name: _PostToTag, A=postId, B=tagId)
+// Post <-> Tag many-to-many (Prisma implicit table name: _PostToTag)
 // -----------------------------------------------------------------------------
 
 export const postToTag = pgTable(
@@ -182,11 +299,38 @@ export const postToTag = pgTable(
       .notNull()
       .references(() => tags.id, { onDelete: "cascade" }),
   },
-  () => []
-);
+  () => [
+    pgPolicy("_PostToTag_select_all", {
+      as: "permissive",
+      for: "select",
+      to: "public",
+      using: sql`true`,
+    }),
+    pgPolicy("_PostToTag_insert_author_or_admin", {
+      as: "permissive",
+      for: "insert",
+      to: authenticatedRole,
+      withCheck: sql`EXISTS (
+        SELECT 1 FROM posts
+        WHERE posts.id = "A"
+        AND (posts."authorId" = auth.uid()::text OR current_user_is_admin())
+      )`,
+    }),
+    pgPolicy("_PostToTag_delete_author_or_admin", {
+      as: "permissive",
+      for: "delete",
+      to: "public",
+      using: sql`EXISTS (
+        SELECT 1 FROM posts
+        WHERE posts.id = "A"
+        AND (posts."authorId" = auth.uid()::text OR current_user_is_admin())
+      )`,
+    }),
+  ]
+).enableRLS();
 
 // -----------------------------------------------------------------------------
-// Bookmarks
+// Bookmarks (user sees only own rows)
 // -----------------------------------------------------------------------------
 
 export const bookmarks = pgTable(
@@ -201,11 +345,36 @@ export const bookmarks = pgTable(
     uniqueIndex("bookmarks_user_id_post_id_key").on(t.userId, t.postId),
     index("bookmarks_user_created_at_idx").on(t.userId, t.createdAt),
     index("bookmarks_post_id_idx").on(t.postId),
+    pgPolicy("bookmarks_select_own", {
+      as: "permissive",
+      for: "select",
+      to: "public",
+      using: sql`"userId" = ${authUid}`,
+    }),
+    pgPolicy("bookmarks_insert_own", {
+      as: "permissive",
+      for: "insert",
+      to: "public",
+      withCheck: sql`"userId" = ${authUid}`,
+    }),
+    pgPolicy("bookmarks_update_own", {
+      as: "permissive",
+      for: "update",
+      to: "public",
+      using: sql`"userId" = ${authUid}`,
+      withCheck: sql`"userId" = ${authUid}`,
+    }),
+    pgPolicy("bookmarks_delete_own", {
+      as: "permissive",
+      for: "delete",
+      to: "public",
+      using: sql`"userId" = ${authUid}`,
+    }),
   ]
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
-// Favorites
+// Favorites (user sees only own rows)
 // -----------------------------------------------------------------------------
 
 export const favorites = pgTable(
@@ -221,11 +390,36 @@ export const favorites = pgTable(
     index("favorites_user_created_at_idx").on(t.userId, t.createdAt),
     index("favorites_post_id_idx").on(t.postId),
     index("favorites_post_created_at_idx").on(t.postId, t.createdAt),
+    pgPolicy("favorites_select_own", {
+      as: "permissive",
+      for: "select",
+      to: "public",
+      using: sql`"userId" = ${authUid}`,
+    }),
+    pgPolicy("favorites_insert_own", {
+      as: "permissive",
+      for: "insert",
+      to: "public",
+      withCheck: sql`"userId" = ${authUid}`,
+    }),
+    pgPolicy("favorites_update_own", {
+      as: "permissive",
+      for: "update",
+      to: "public",
+      using: sql`"userId" = ${authUid}`,
+      withCheck: sql`"userId" = ${authUid}`,
+    }),
+    pgPolicy("favorites_delete_own", {
+      as: "permissive",
+      for: "delete",
+      to: "public",
+      using: sql`"userId" = ${authUid}`,
+    }),
   ]
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
-// Logs
+// Logs (admin read; authenticated can insert for audit trail)
 // -----------------------------------------------------------------------------
 
 export const logs = pgTable(
@@ -254,11 +448,23 @@ export const logs = pgTable(
       t.createdAt
     ),
     index("logs_user_action_created_idx").on(t.userId, t.action, t.createdAt),
+    pgPolicy("logs_select_admin", {
+      as: "permissive",
+      for: "select",
+      to: "public",
+      using: isAdmin,
+    }),
+    pgPolicy("logs_insert_authenticated", {
+      as: "permissive",
+      for: "insert",
+      to: authenticatedRole,
+      withCheck: sql`true`,
+    }),
   ]
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
-// Media
+// Media (read all; insert authenticated; update/delete owner or admin)
 // -----------------------------------------------------------------------------
 
 export const media = pgTable(
@@ -285,11 +491,36 @@ export const media = pgTable(
     index("media_uploaded_by_idx").on(t.uploadedBy),
     index("media_mime_type_idx").on(t.mimeType),
     index("media_created_at_desc_idx").on(t.createdAt),
+    pgPolicy("media_select_all", {
+      as: "permissive",
+      for: "select",
+      to: "public",
+      using: sql`true`,
+    }),
+    pgPolicy("media_insert_authenticated", {
+      as: "permissive",
+      for: "insert",
+      to: authenticatedRole,
+      withCheck: sql`"uploadedBy" = ${authUid}`,
+    }),
+    pgPolicy("media_update_owner_or_admin", {
+      as: "permissive",
+      for: "update",
+      to: "public",
+      using: sql`${isOwnerOrAdmin("uploadedBy")}`,
+      withCheck: sql`${isOwnerOrAdmin("uploadedBy")}`,
+    }),
+    pgPolicy("media_delete_owner_or_admin", {
+      as: "permissive",
+      for: "delete",
+      to: "public",
+      using: sql`${isOwnerOrAdmin("uploadedBy")}`,
+    }),
   ]
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
-// Settings
+// Settings (admin only; contains secrets like S3 keys)
 // -----------------------------------------------------------------------------
 
 export const settings = pgTable(
@@ -330,8 +561,33 @@ export const settings = pgTable(
     index("settings_updated_by_idx").on(t.updatedBy),
     index("settings_created_at_desc_idx").on(t.createdAt),
     index("settings_updated_at_desc_idx").on(t.updatedAt),
+    pgPolicy("settings_select_admin", {
+      as: "permissive",
+      for: "select",
+      to: "public",
+      using: isAdmin,
+    }),
+    pgPolicy("settings_insert_admin", {
+      as: "permissive",
+      for: "insert",
+      to: "public",
+      withCheck: isAdmin,
+    }),
+    pgPolicy("settings_update_admin", {
+      as: "permissive",
+      for: "update",
+      to: "public",
+      using: isAdmin,
+      withCheck: isAdmin,
+    }),
+    pgPolicy("settings_delete_admin", {
+      as: "permissive",
+      for: "delete",
+      to: "public",
+      using: isAdmin,
+    }),
   ]
-);
+).enableRLS();
 
 // -----------------------------------------------------------------------------
 // Relation types for Drizzle relational queries (optional)

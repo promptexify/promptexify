@@ -9,13 +9,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 npm run dev              # Start dev server with Turbopack
 
 # Build & Production
-npm run build            # Generates Prisma client, runs migrations, pushes schema, then builds
+npm run build            # Builds Next.js application
 npm start                # Start production server
 
 # Database
-npm run db:migrate       # Run pending migrations (prisma migrate deploy)
-npm run db:push          # Push schema changes without migrations
-npm run db:studio        # Open Prisma Studio GUI
+npm run db:deploy        # Full deploy: RLS helper functions + Drizzle migrations
+npm run db:migrate       # Run pending Drizzle migrations only
+npm run db:generate      # Generate migration from schema changes
+npm run db:push          # Push schema changes without migrations (dev only)
+npm run db:rls           # Apply RLS helper functions only
+npm run db:studio        # Open Drizzle Studio GUI
 npm run db:seed          # Seed the database
 npm run db:reset         # Reset database
 
@@ -46,8 +49,8 @@ npm run content:generate  # Execute content automation (CSV → posts pipeline)
 
 ### Tech Stack
 - **Next.js 15** App Router with Turbopack, React 18
-- **PostgreSQL** via **Prisma ORM** (client generated to `app/generated/prisma/`)
-- **Supabase Auth** — handles sessions; user records are mirrored into Prisma `users` table via `upsertUserInDatabase`
+- **PostgreSQL** via **Drizzle ORM** (schema in `lib/db/schema.ts`, migrations in `drizzle/`)
+- **Supabase Auth** — handles sessions; user records are mirrored into Drizzle `users` table via `upsertUserInDatabase`
 - **Redis / BullMQ** — rate limiting and background job queues; falls back to in-memory when Redis is unavailable
 - **AWS S3 / DigitalOcean Spaces** — media uploads; storage provider configurable in DB `settings` table
 
@@ -65,7 +68,7 @@ app/
 
 ### Data Flow
 
-1. **Authentication**: Supabase session → `lib/supabase/middleware.ts` updates cookie → `getCurrentUser()` in `lib/auth.ts` fetches Supabase user + Prisma `userData`. Use `requireAuth()` / `requireAdmin()` for protected server actions/routes.
+1. **Authentication**: Supabase session → `lib/supabase/middleware.ts` updates cookie → `getCurrentUser()` in `lib/auth.ts` fetches Supabase user + Drizzle `userData`. Use `requireAuth()` / `requireAdmin()` for protected server actions/routes.
 
 2. **Posts**: Stored in Postgres. Queries are in `lib/query.ts` (`PostQueries`, `MetadataQueries` classes) with typed `POST_SELECTS` objects for list/full/api/admin shapes. The `Queries` object at the bottom provides a unified interface that bypasses cache for authenticated users.
 
@@ -81,13 +84,16 @@ app/
 - **CSRF**: Token stored in cookie, validated in middleware for all mutating API calls. Endpoints that skip CSRF: `/api/webhooks/`, `/api/upload/`, `/api/auth/`, `/auth/callback`, `/api/security/csp-report`.
 - **Rate limiting**: `lib/edge.ts` — Redis-backed, falls back to in-memory. Applied globally to `/api/*` routes in middleware.
 - **Input sanitization**: `lib/security/sanitize.ts` — use `sanitizeInput()` for text fields, `sanitizeContent()` for HTML content, `sanitizeTagSlug()` for slugs.
-- **Audit logging**: `lib/security/audit.ts` `SecurityEvents` — logs auth failures, rate limit hits, etc. to the `logs` Prisma model.
+- **Audit logging**: `lib/security/audit.ts` `SecurityEvents` — logs auth failures, rate limit hits, etc. to the `logs` table.
+- **Row-Level Security (RLS)**: Defined in Drizzle schema (`lib/db/schema.ts`) via `pgPolicy()` + `.enableRLS()`. Helper functions (`current_user_is_admin()`, `current_user_id()`) in `scripts/rls-functions.sql`. Run `npm run db:deploy` to apply both RLS functions and migrations on deploy.
 
-### Prisma
+### Drizzle ORM
 
-- Client is generated to `app/generated/prisma` (not the default `node_modules/@prisma/client`). Always import from `@/app/generated/prisma` for types/enums.
-- `lib/prisma.ts` exports a singleton `prisma` client plus `withTransaction()` and `withErrorHandling()` utilities.
+- Schema defined in `lib/db/schema.ts`. Migrations generated to `drizzle/` folder.
+- `lib/db/index.ts` exports a singleton `db` client plus `withTransaction()` and `withErrorHandling()` utilities.
 - Schema enums: `UserType` (FREE/PREMIUM), `UserRole` (USER/ADMIN), `PostStatus` (DRAFT/PENDING_APPROVAL/APPROVED/REJECTED), `OAuthProvider` (GOOGLE/EMAIL).
+- **RLS policies** are declared inline in each table's third argument using `pgPolicy()` from `drizzle-orm/pg-core`. This ensures `drizzle-kit generate` includes them in migrations and won't drop them.
+- **Deployment**: Always use `npm run db:deploy` (runs `scripts/deploy-db.ts`) which applies RLS helper functions first, then runs Drizzle migrations.
 
 ### Key Patterns
 
