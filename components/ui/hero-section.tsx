@@ -55,7 +55,7 @@ export function HeroSection({
       className="group relative bg-gradient-to-b from-background via-muted/20 to-background -mt-10 pt-14 overflow-hidden z-20 pb-10"
     >
       {/* Grid Background */}
-      <GridBackground className="z-0" gridSize={80} />
+      <GridBackground className="z-0" gridSize={35} />
       <AnimatedBackground className="z-10" />
 
       <div className="absolute bottom-0 bg-gradient-to-t from-background to-transparent w-full h-20 z-50" />

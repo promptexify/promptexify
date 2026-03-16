@@ -456,7 +456,7 @@ export class SecurityHeaders {
     const cspDirectives = [
       "default-src 'self'",
       this.buildScriptSrc(nonce, isDevelopment),
-      this.buildStyleSrc(nonce, isDevelopment),
+      this.buildStyleSrc(),
       this.buildImgSrc(),
       this.buildFontSrc(),
       this.buildConnectSrc(isDevelopment),
@@ -484,7 +484,7 @@ export class SecurityHeaders {
     const directives = {
       'default-src': "'self'",
       'script-src': this.buildScriptSrc(nonce, isDevelopment),
-      'style-src': this.buildStyleSrc(nonce, isDevelopment),
+      'style-src': this.buildStyleSrc(),
       'img-src': this.buildImgSrc(),
       'font-src': this.buildFontSrc(),
       'connect-src': this.buildConnectSrc(isDevelopment),
@@ -567,7 +567,7 @@ export class SecurityHeaders {
    * compared to inline scripts, and it is impractical to hash every dynamic
    * style value produced by third-party UI libraries.
    */
-  private static buildStyleSrc(_nonce?: string, _isDevelopment: boolean = false): string {
+  private static buildStyleSrc(): string {
     const styleSources = [
       "'self'",
       "'unsafe-inline'",
