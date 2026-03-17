@@ -16,7 +16,7 @@ export function Footer() {
               Directory for the new coding era. Rules, MCP, Skills, and prompts
               for Cursor, Claude Code, and more. Better prompts, better code.
             </p>
-            <div className="flex items-center space-x-2 border-t border-border/40 pt-5 mt-10">
+            <div className="flex items-center space-x-2 mt-5">
               <Link
                 href="https://github.com/chhayvoinvy/promptexify"
                 className="flex items-center justify-center h-10 w-10 border border-input rounded-md text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"

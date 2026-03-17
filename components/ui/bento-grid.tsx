@@ -17,7 +17,7 @@ export function BentoGrid() {
 
   return (
     <section className="py-5 md:py-12 lg:py-12 xl:py-12">
-      <div className="relative z-10 grid grid-cols-6 gap-3">
+      <div className="relative z-10 grid grid-cols-6 gap-3 p-1">
         {/* First card */}
         <div className="relative col-span-full flex overflow-hidden rounded-2xl border bg-background p-8 lg:col-span-2">
           <div className="relative m-auto size-fit">
