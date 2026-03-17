@@ -44,20 +44,6 @@ export class CSRFProtection {
       // Set backup cookie for reliability (with different name)
       const backupCookieName = `${this.CSRF_COOKIE_NAME}-backup`;
       cookieStore.set(backupCookieName, token, cookieOptions);
-
-      // In development, also set a debug cookie without httpOnly for debugging
-      if (!isProduction) {
-        cookieStore.set(`${this.CSRF_COOKIE_NAME}-debug`, token, {
-          ...cookieOptions,
-          httpOnly: false,
-        });
-      }
-
-      if (process.env.NODE_ENV !== "production") {
-        console.log(
-          `[CSRF] Token set successfully with cookie name: ${this.CSRF_COOKIE_NAME}`
-        );
-      }
     } catch (error) {
       console.error("[CSRF] Failed to set token:", error);
       throw error;
@@ -71,7 +57,6 @@ export class CSRFProtection {
     try {
       const { cookies } = await import("next/headers");
       const cookieStore = await cookies();
-      const isProduction = process.env.NODE_ENV === "production";
 
       // Try primary cookie first
       let token = cookieStore.get(this.CSRF_COOKIE_NAME)?.value || null;
@@ -80,12 +65,6 @@ export class CSRFProtection {
       if (!token) {
         const backupCookieName = `${this.CSRF_COOKIE_NAME}-backup`;
         token = cookieStore.get(backupCookieName)?.value || null;
-      }
-
-      // In development, try debug cookie as final fallback
-      if (!token && !isProduction) {
-        token =
-          cookieStore.get(`${this.CSRF_COOKIE_NAME}-debug`)?.value || null;
       }
 
       return token;
@@ -827,8 +806,13 @@ export function withCSRFProtection<T extends unknown[], R>(
       if (error instanceof SecureActionError) {
         throw error;
       }
-      
-      // Handle unexpected errors
+
+      // Re-throw Error instances so callers see the original message
+      if (error instanceof Error) {
+        throw error;
+      }
+
+      // Handle unexpected non-Error throws
       console.error("Secure action error:", error);
       throw new SecureActionError("Action failed", "ACTION_ERROR", 500);
     }
@@ -859,7 +843,7 @@ export function handleSecureActionError(error: unknown): {
   }
 
   if (error instanceof Error) {
-    if (process.env.NODE_ENV !== "production") {
+    if (process.env.VERBOSE_ERRORS === "true") {
       return {
         error: error.message,
         code: "UNKNOWN_ERROR",

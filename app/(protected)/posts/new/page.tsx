@@ -241,14 +241,14 @@ export default function NewPostPage() {
         }
 
         // If there were failed tags, show a warning but still continue
-                  if (failedTags.length > 0) {
-            console.warn(
-              `Some tags could not be created: ${failedTags.join(", ")}`
-            );
-            toast.warning(
-              `Some tags could not be created: ${failedTags.join(", ")}`
-            );
-          }
+        if (failedTags.length > 0) {
+          console.warn(
+            `Some tags could not be created: ${failedTags.join(", ")}`
+          );
+          toast.warning(
+            `Some tags could not be created: ${failedTags.join(", ")}`
+          );
+        }
       }
 
       // Add the featured media URLs to form data
@@ -272,35 +272,29 @@ export default function NewPostPage() {
         secureFormData.set(key, value);
       }
       await createPostAction(secureFormData);
+    } catch (error) {
+      console.error("Error creating post:", error);
 
-              // Show success message - redirect is handled by server action
-        toast.success("Post submitted successfully!");
-      } catch (error) {
-        console.error("Error creating post:", error);
-
-        // Check if this is a Next.js redirect (expected behavior)
-        if (error && typeof error === "object" && "digest" in error) {
-          const errorDigest = (error as { digest?: string }).digest;
-          if (
-            typeof errorDigest === "string" &&
-            errorDigest.includes("NEXT_REDIRECT")
-          ) {
-            // This is a redirect - don't show error, redirect is working as expected
-            return;
-          }
+      // Check if this is a Next.js redirect (expected behavior)
+      if (error && typeof error === "object" && "digest" in error) {
+        const errorDigest = (error as { digest?: string }).digest;
+        if (
+          typeof errorDigest === "string" &&
+          errorDigest.includes("NEXT_REDIRECT")
+        ) {
+          return;
         }
+      }
 
-        // Show user-friendly error message for actual errors
-        if (error instanceof Error) {
-          // Check for specific error types
-          if (error.message.includes("slug") || error.message.includes("unique")) {
-            toast.error("A post with this title already exists. Please choose a different title.");
-          } else {
-            toast.error(error.message);
-          }
+      if (error instanceof Error) {
+        if (error.message.includes("slug") || error.message.includes("unique")) {
+          toast.error("A post with this title already exists. Please choose a different title.");
         } else {
-          toast.error("Failed to create post. Please try again.");
+          toast.error(error.message);
         }
+      } else {
+        toast.error("Failed to create post. Please try again.");
+      }
     } finally {
       setIsSubmitting(false);
     }

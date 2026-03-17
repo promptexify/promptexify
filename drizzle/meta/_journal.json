@@ -22,6 +22,13 @@
       "when": 1773680952042,
       "tag": "0002_sticky_dazzler",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1773723792659,
+      "tag": "0003_late_rattler",
+      "breakpoints": true
     }
   ]
 }

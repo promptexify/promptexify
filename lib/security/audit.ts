@@ -4,7 +4,7 @@
  */
 
 import { db } from "@/lib/db";
-import { logs } from "@/lib/db/schema";
+import { logs, type LogSeverity } from "@/lib/db/schema";
 import { desc, sql, gte, inArray } from "drizzle-orm";
 
 export interface AuditEvent {
@@ -15,7 +15,7 @@ export interface AuditEvent {
   ipAddress?: string;
   userAgent?: string;
   metadata?: Record<string, string | number | boolean>;
-  severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  severity: LogSeverity;
 }
 
 export interface SecurityEvent extends AuditEvent {

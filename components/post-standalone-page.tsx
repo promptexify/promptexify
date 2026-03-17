@@ -172,7 +172,7 @@ export function PostStandalonePage({
           currentVideo.pause();
         }
       }
-      
+
       // Start playing this video
       video.play().catch(err => {
         console.error("Failed to play video:", err);
@@ -202,7 +202,7 @@ export function PostStandalonePage({
 
   const handleMainVideoLoadedMetadata = (event: React.SyntheticEvent<HTMLVideoElement>) => {
     setVideoLoaded(true);
-    
+
     // Auto-play if this video should be playing
     if (playingVideo === 'main') {
       const video = event.currentTarget as HTMLVideoElement;
@@ -368,9 +368,6 @@ export function PostStandalonePage({
                 {/* Content container with smooth transitions */}
                 <div className="bg-muted/30 rounded-lg border overflow-hidden">
                   <div className="px-8 flex items-center justify-between py-4">
-                    <h3 className="text-lg font-semibold">
-                      {showPreview ? "Preview:" : "Prompt:"}
-                    </h3>
                     {!showPreview && (
                       <Badge variant="secondary" className="text-xs">
                         {post.content?.length || 0} characters
@@ -381,11 +378,10 @@ export function PostStandalonePage({
                   <div className="relative h-96">
                     {/* Prompt content */}
                     <div
-                      className={`absolute inset-0 transition-all duration-500 ease-in-out ${
-                        showPreview
+                      className={`absolute inset-0 transition-all duration-500 ease-in-out ${showPreview
                           ? "opacity-0 translate-y-4 pointer-events-none"
                           : "opacity-100 translate-y-0"
-                      }`}
+                        }`}
                     >
                       <div className="h-full overflow-y-auto">
                         <div className="px-8 pb-6">
@@ -399,11 +395,10 @@ export function PostStandalonePage({
 
                     {/* Preview content */}
                     <div
-                      className={`absolute inset-0 transition-all duration-500 ease-in-out ${
-                        showPreview
+                      className={`absolute inset-0 transition-all duration-500 ease-in-out ${showPreview
                           ? "opacity-100 translate-y-0"
                           : "opacity-0 -translate-y-4 pointer-events-none"
-                      }`}
+                        }`}
                     >
                       <div className="h-full overflow-y-auto">
                         <div className="px-8 pb-6">
@@ -421,7 +416,7 @@ export function PostStandalonePage({
                                   blurDataURL={post.blurData || undefined}
                                 />
                               )}
-                              
+
                               {/* Show video when user clicks play */}
                               {showVideo && (
                                 <MediaVideo
@@ -537,7 +532,7 @@ export function PostStandalonePage({
                       onClick={() => router.push(`/entry/${relatedPost.id}`)}
                     >
                       <div className="flex items-start gap-3">
-                                                  {relatedPost.uploadPath && (
+                        {relatedPost.uploadPath && (
                           <div className="w-12 h-12 rounded overflow-hidden flex-shrink-0 relative">
                             {relatedPost.uploadPath && relatedPost.uploadFileType === "VIDEO" ? (
                               <>
@@ -574,7 +569,7 @@ export function PostStandalonePage({
                                     }}
                                   >
                                     {playingVideo ===
-                                    `related-${relatedPost.id}` ? (
+                                      `related-${relatedPost.id}` ? (
                                       <Pause className="h-2 w-2 text-white" />
                                     ) : (
                                       <Play className="h-2 w-2 text-white" />

@@ -22,6 +22,7 @@ import {
   sanitizeContent,
   sanitizeTagSlug,
 } from "@/lib/security/sanitize";
+import { createPostFormSchema, updatePostFormSchema } from "@/lib/schemas";
 
 // Post management actions
 export const createPostAction = withCSRFProtection(
@@ -39,22 +40,35 @@ export const createPostAction = withCSRFProtection(
         throw new Error("Unauthorized: Only registered users can create posts");
       }
 
-      // Extract and validate form data
-      const rawTitle = formData.get("title") as string;
-      const rawSlug = formData.get("slug") as string;
-      const rawDescription = formData.get("description") as string;
-      const rawContent = formData.get("content") as string;
-      const uploadPath = formData.get("uploadPath") as string;
-      const uploadFileType = formData.get("uploadFileType") as "IMAGE" | "VIDEO";
-      const blurData = formData.get("blurData") as string;
-      const uploadMediaId = formData.get("uploadMediaId") as string;
-      const previewPath = formData.get("previewPath") as string;
-      const previewVideoPath = formData.get("previewVideoPath") as string;
-      const category = formData.get("category") as string;
-      const subcategory = formData.get("subcategory") as string;
-      const tagsInput = formData.get("tags") as string;
+      // Parse and validate FormData with Zod — strips File objects, coerces
+      // empty strings to null, "on" checkboxes to booleans, etc.
+      const raw = Object.fromEntries(
+        Array.from(formData.entries()).filter(([, v]) => typeof v === "string")
+      );
+      const parsed = createPostFormSchema.safeParse(raw);
+      if (!parsed.success) {
+        throw new Error(parsed.error.errors[0]?.message ?? "Invalid form data");
+      }
 
-      // Sanitize inputs for enhanced security
+      const {
+        title: rawTitle,
+        slug: rawSlug,
+        description: rawDescription,
+        content: rawContent,
+        category,
+        subcategory,
+        tags: tagNames,
+        uploadPath,
+        uploadFileType,
+        uploadMediaId,
+        previewPath,
+        previewVideoPath,
+        blurData,
+        isPublished: formIsPublished,
+        isPremium,
+      } = parsed.data;
+
+      // Sanitize free-text fields after schema validation
       const title = sanitizeInput(rawTitle);
       const description = rawDescription ? sanitizeInput(rawDescription) : null;
       const content = sanitizeContent(rawContent);
@@ -87,25 +101,15 @@ export const createPostAction = withCSRFProtection(
       let status: PostStatus = "DRAFT";
 
       if (user.role === "ADMIN") {
-        isPublished = formData.get("isPublished") === "on";
+        isPublished = formIsPublished;
         status = isPublished ? "APPROVED" : "DRAFT";
       } else {
         isPublished = false;
         status = "PENDING_APPROVAL";
       }
 
-      const isPremium = formData.get("isPremium") === "on";
-
-      // Validate required fields
-      if (!title || !content || !category) {
-        throw new Error("Missing required fields");
-      }
-
-      // Get category ID - prefer subcategory if provided, otherwise use main category
-      const selectedCategorySlug =
-        subcategory && subcategory !== "" && subcategory !== "none"
-          ? subcategory
-          : category;
+      // Get category ID — subcategory takes priority when present
+      const selectedCategorySlug = subcategory ?? category;
       const [categoryRecord] = await db
         .select()
         .from(categories)
@@ -113,22 +117,17 @@ export const createPostAction = withCSRFProtection(
         .limit(1);
       if (!categoryRecord) throw new Error("Invalid category");
 
-      const tagNames = tagsInput
-        ? tagsInput
-            .split(",")
-            .map((tag) => sanitizeInput(tag.trim()))
-            .filter(Boolean)
-        : [];
+      const sanitizedTagNames = tagNames.map((t) => sanitizeInput(t)).filter(Boolean);
       const maxTagsPerPost = await (
         await import("@/lib/settings")
       ).getMaxTagsPerPost();
-      if (tagNames.length > maxTagsPerPost) {
+      if (sanitizedTagNames.length > maxTagsPerPost) {
         throw new Error(`A post may only have up to ${maxTagsPerPost} tags`);
       }
 
       const { newPost } = await db.transaction(async (tx) => {
         const tagIds: string[] = [];
-        for (const tagName of tagNames) {
+        for (const tagName of sanitizedTagNames) {
           const tagSlug = sanitizeTagSlug(tagName);
           if (!tagSlug) continue;
           const [row] = await tx
@@ -150,7 +149,7 @@ export const createPostAction = withCSRFProtection(
             description: description || null,
             content,
             uploadPath: uploadPath || null,
-            uploadFileType: uploadFileType ?? null,
+            uploadFileType: uploadFileType || null,
             previewPath: previewPath || null,
             previewVideoPath: previewVideoPath || null,
             blurData: blurData || null,
@@ -171,7 +170,7 @@ export const createPostAction = withCSRFProtection(
         return { newPost: inserted };
       });
 
-      const mediaIds = [uploadMediaId].filter(Boolean);
+      const mediaIds = uploadMediaId ? [uploadMediaId] : [];
       if (mediaIds.length > 0) {
         await db
           .update(media)
@@ -207,17 +206,20 @@ export const createPostAction = withCSRFProtection(
       }
 
       console.error("Error creating post:", error);
-      
+
       // Handle specific database errors
       if (error && typeof error === "object" && "code" in error) {
         const dbError = error as { code: string; meta?: unknown };
-        
         if (dbError.code === "P2002") {
-          // Unique constraint violation
           throw new Error("A post with this title already exists. Please choose a different title.");
         }
       }
-      
+
+      // Re-throw known Error instances (they already have user-friendly messages)
+      if (error instanceof Error) {
+        throw error;
+      }
+
       throw new Error("Failed to create post");
     }
   }
@@ -234,31 +236,37 @@ export const updatePostAction = withCSRFProtection(
       }
       const user = currentUser.userData;
 
-      // Extract and sanitize form data
-      const id = formData.get("id") as string;
-      const rawTitle = formData.get("title") as string;
-      const rawSlug = formData.get("slug") as string;
-      const rawDescription = formData.get("description") as string;
-      const rawContent = formData.get("content") as string;
-      const uploadPath = formData.get("uploadPath") as string;
-      const uploadFileType = formData.get("uploadFileType") as "IMAGE" | "VIDEO";
-      const blurData = formData.get("blurData") as string;
-      const uploadMediaId = formData.get("uploadMediaId") as string;
-      const previewPath = formData.get("previewPath") as string;
-      const previewVideoPath = formData.get("previewVideoPath") as string;
-      const category = formData.get("category") as string;
-      const subcategory = formData.get("subcategory") as string;
-      const tagsInputUpdate = formData.get("tags") as string;
-      const isPremium = formData.get("isPremium") === "on";
+      // Parse and validate FormData with Zod
+      const raw = Object.fromEntries(
+        Array.from(formData.entries()).filter(([, v]) => typeof v === "string")
+      );
+      const parsed = updatePostFormSchema.safeParse(raw);
+      if (!parsed.success) {
+        throw new Error(parsed.error.errors[0]?.message ?? "Invalid form data");
+      }
+
+      const {
+        id,
+        title: rawTitle,
+        slug: rawSlug,
+        description: rawDescription,
+        content: rawContent,
+        category,
+        subcategory,
+        tags: tagNamesUpdate,
+        uploadPath,
+        uploadFileType,
+        uploadMediaId,
+        previewPath,
+        previewVideoPath,
+        blurData,
+        isPublished: formIsPublished,
+        isPremium,
+      } = parsed.data;
 
       const title = sanitizeInput(rawTitle);
       const description = rawDescription ? sanitizeInput(rawDescription) : null;
       const content = sanitizeContent(rawContent);
-
-      // Validate required fields
-      if (!id || !title || !content || !category) {
-        throw new Error("Missing required fields");
-      }
 
       // Generate slug if not provided and ensure uniqueness
       const baseSlug =
@@ -328,18 +336,14 @@ export const updatePostAction = withCSRFProtection(
       let status: PostStatus = existingPost.status as PostStatus;
 
       if (user.role === "ADMIN") {
-        const requestedPublish = formData.get("isPublished") === "on";
-        isPublished = requestedPublish;
-        status = requestedPublish ? "APPROVED" : "DRAFT";
+        isPublished = formIsPublished;
+        status = isPublished ? "APPROVED" : "DRAFT";
       } else {
         isPublished = false;
         status = "PENDING_APPROVAL";
       }
 
-      const selectedCategorySlug =
-        subcategory && subcategory !== "" && subcategory !== "none"
-          ? subcategory
-          : category;
+      const selectedCategorySlug = subcategory ?? category;
       const [categoryRecord] = await db
         .select()
         .from(categories)
@@ -351,9 +355,7 @@ export const updatePostAction = withCSRFProtection(
       }
 
       // Prepare media updates
-      const newMediaIds = [uploadMediaId].filter(
-        (id) => id && typeof id === "string"
-      );
+      const newMediaIds = uploadMediaId ? [uploadMediaId] : [];
       const oldMediaIds = existingPost.media.map((m) => m.id);
 
       // IDs of media to be disassociated from the post
@@ -371,9 +373,7 @@ export const updatePostAction = withCSRFProtection(
           .where(and(inArray(media.id, mediaToUnlink), eq(media.postId, existingPost.id)));
       }
 
-      const newTagNames = tagsInputUpdate
-        ? tagsInputUpdate.split(",").map((tag) => sanitizeInput(tag.trim())).filter(Boolean)
-        : [];
+      const newTagNames = tagNamesUpdate.map((t) => sanitizeInput(t)).filter(Boolean);
       const maxTagsPerPostUpdate = await (
         await import("@/lib/settings")
       ).getMaxTagsPerPost();
@@ -413,7 +413,7 @@ export const updatePostAction = withCSRFProtection(
           description: description ?? null,
           content,
           uploadPath: uploadPath || null,
-          uploadFileType: uploadFileType ?? null,
+          uploadFileType: uploadFileType || null,
           previewPath: previewPath || null,
           previewVideoPath: previewVideoPath || null,
           blurData: blurData || null,
@@ -462,17 +462,20 @@ export const updatePostAction = withCSRFProtection(
       }
 
       console.error("Error updating post:", error);
-      
+
       // Handle specific database errors
       if (error && typeof error === "object" && "code" in error) {
         const dbError = error as { code: string; meta?: unknown };
-        
         if (dbError.code === "P2002") {
-          // Unique constraint violation
           throw new Error("A post with this title already exists. Please choose a different title.");
         }
       }
-      
+
+      // Re-throw known Error instances (they already have user-friendly messages)
+      if (error instanceof Error) {
+        throw error;
+      }
+
       throw new Error("Failed to update post");
     }
   }

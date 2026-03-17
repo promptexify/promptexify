@@ -1,64 +1,73 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SecurityHeaders } from "@/lib/security/csp";
 
+// CSP reports are sent as application/csp-report or application/reports+json
+const ALLOWED_CONTENT_TYPES = [
+  "application/csp-report",
+  "application/reports+json",
+  "application/json",
+];
+
+// Reject oversized payloads — legitimate CSP reports are small
+const MAX_BODY_BYTES = 8_192; // 8 KB
+
 /**
  * POST - CSP Violation Report Endpoint
- * 
- * This endpoint receives CSP violation reports from browsers when the
- * Content Security Policy is violated. Following csp.md recommendations
- * for monitoring and debugging CSP issues.
+ *
+ * Receives CSP violation reports from browsers. CSRF is intentionally
+ * skipped for this endpoint (browsers send these without tokens) — the
+ * middleware skipCSRF list already excludes it from CSRF validation.
  */
 export async function POST(request: NextRequest) {
+  const securityHeaders = SecurityHeaders.getSecurityHeaders();
+
   try {
-    const securityHeaders = SecurityHeaders.getSecurityHeaders();
+    // Validate Content-Type
+    const contentType = request.headers.get("content-type")?.split(";")[0].trim() ?? "";
+    if (!ALLOWED_CONTENT_TYPES.includes(contentType)) {
+      return new NextResponse(null, { status: 415, headers: securityHeaders });
+    }
 
-    // Parse the CSP violation report
-    const violation = await request.json();
-    
-    // Log the violation for monitoring
-    const logData = {
-      timestamp: new Date().toISOString(),
-      userAgent: request.headers.get('user-agent') || 'unknown',
-      ip: request.headers.get('x-forwarded-for')?.split(',')[0] || 
-          request.headers.get('x-real-ip') || 'unknown',
-      violation: violation['csp-report'] || violation,
-      url: request.headers.get('referer') || 'unknown',
-    };
+    // Enforce body size limit before parsing
+    const contentLength = Number(request.headers.get("content-length") ?? 0);
+    if (contentLength > MAX_BODY_BYTES) {
+      return new NextResponse(null, { status: 413, headers: securityHeaders });
+    }
 
-    // Log to console for development/debugging
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[CSP-VIOLATION]', JSON.stringify(logData, null, 2));
+    const body = await request.text();
+    if (body.length > MAX_BODY_BYTES) {
+      return new NextResponse(null, { status: 413, headers: securityHeaders });
+    }
+
+    let violation: Record<string, unknown>;
+    try {
+      violation = JSON.parse(body);
+    } catch {
+      return new NextResponse(null, { status: 400, headers: securityHeaders });
+    }
+
+    // Extract the report — browsers wrap it in "csp-report" or send flat reports+json
+    const report = (violation["csp-report"] as Record<string, unknown>) ?? violation;
+
+    if (process.env.NODE_ENV === "development") {
+      console.log("[CSP-VIOLATION]", {
+        directive: report["violated-directive"],
+        blockedUri: report["blocked-uri"],
+        documentUri: report["document-uri"],
+        timestamp: new Date().toISOString(),
+      });
     } else {
-      // In production, log more concisely
-      console.warn('[CSP-VIOLATION]', {
-        directive: violation['csp-report']?.['violated-directive'],
-        blockedUri: violation['csp-report']?.['blocked-uri'],
-        documentUri: violation['csp-report']?.['document-uri'],
-        timestamp: logData.timestamp,
+      console.warn("[CSP-VIOLATION]", {
+        directive: report["violated-directive"],
+        blockedUri: report["blocked-uri"],
+        documentUri: report["document-uri"],
+        timestamp: new Date().toISOString(),
       });
     }
 
-    // TODO: In production, you might want to send this to an external monitoring service
-    // Examples: DataDog, New Relic, Sentry, etc.
-    // await sendToMonitoringService(logData);
-
-    return NextResponse.json(
-      { received: true },
-      { 
-        status: 204, // No Content
-        headers: securityHeaders 
-      }
-    );
+    return new NextResponse(null, { status: 204, headers: securityHeaders });
   } catch (error) {
-    console.error('CSP report processing error:', error);
-    
-    const securityHeaders = SecurityHeaders.getSecurityHeaders();
-    return NextResponse.json(
-      { error: 'Failed to process CSP report' },
-      { 
-        status: 500,
-        headers: securityHeaders 
-      }
-    );
+    console.error("CSP report processing error:", error);
+    return new NextResponse(null, { status: 500, headers: securityHeaders });
   }
 }

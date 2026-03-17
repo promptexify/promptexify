@@ -30,12 +30,17 @@ export async function middleware(request: NextRequest) {
     // Set nonce in headers for Server Components to access
     requestHeaders.set("x-nonce", nonce);
 
-    // Set nonce in cookie for client components (httpOnly: false so client can read)
+    // Set nonce in cookie for client components (httpOnly: false so client can read).
+    // No maxAge — this is a session cookie that expires when the browser tab closes.
+    // Derive `secure` from the actual protocol, not NODE_ENV, so `next start` on
+    // plain HTTP (e.g. localhost) works without the cookie being rejected.
+    const proto =
+      request.headers.get("x-forwarded-proto") ??
+      (request.url.startsWith("https") ? "https" : "http");
     response.cookies.set("csp-nonce", nonce, {
       httpOnly: false,
-      secure: !isDevelopment, // Only secure in production
+      secure: proto === "https",
       sameSite: "strict",
-      maxAge: 60 * 60, // 1 hour
     });
 
     // Apply security headers with CSP

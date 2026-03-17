@@ -181,7 +181,7 @@ export async function saveGenerationLog(log: {
         error: log.error,
         duration: log.duration ?? 0,
       },
-      severity: log.status === "error" ? "ERROR" : "INFO",
+      severity: log.status === "error" ? "HIGH" : "LOW",
     });
   } catch (error) {
     console.error("Error saving generation log:", error);

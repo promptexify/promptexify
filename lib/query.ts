@@ -1,6 +1,6 @@
 /**
  * Query layer built on Drizzle ORM.
- * Replaces Prisma with same caching, memoization, and public API.
+ * Caching, memoization, and public API for all post/metadata queries.
  */
 
 import { db, DatabaseMetrics } from "@/lib/db";
@@ -35,7 +35,7 @@ import {
 } from "drizzle-orm";
 
 // -----------------------------------------------------------------------------
-// Types (match previous Prisma payload shapes for compatibility)
+// Types
 // -----------------------------------------------------------------------------
 
 export interface PostListAuthor {
@@ -141,7 +141,7 @@ type PostGetPaginatedParams = PaginationParams & {
   userId?: string;
 };
 
-// Kept for backward compatibility (select shapes no longer used by Drizzle)
+// Placeholder exports retained for API compatibility; shapes are defined inline per query
 export const POST_SELECTS = { list: {}, full: {}, api: {}, admin: {} } as const;
 export const USER_SELECTS = { profile: {}, admin: {} } as const;
 
@@ -267,16 +267,20 @@ export class PostQueries {
     }
     const whereClause = and(...conditions);
 
+    // Aggregated favorites subquery — avoids correlated subquery per row for popular/trending sorts
+    const favCounts = db
+      .select({ postId: favorites.postId, cnt: sql<number>`count(*)::int`.as("cnt") })
+      .from(favorites)
+      .groupBy(favorites.postId)
+      .as("fav_counts");
+
     const endTimer = DatabaseMetrics.startQuery();
     try {
       const orderByClause =
         sortBy === "popular"
-          ? [desc(sql`(SELECT count(*) FROM favorites WHERE favorites."postId" = ${posts.id})`)]
+          ? [desc(sql`coalesce(${favCounts.cnt}, 0)`), desc(posts.createdAt)]
           : sortBy === "trending"
-            ? [
-                desc(sql`(SELECT count(*) FROM favorites WHERE favorites."postId" = ${posts.id})`),
-                desc(posts.createdAt),
-              ]
+            ? [desc(sql`coalesce(${favCounts.cnt}, 0)`), desc(posts.createdAt)]
             : [desc(posts.createdAt)];
 
       const [rows, countResult] = await Promise.all([
@@ -298,15 +302,16 @@ export class PostQueries {
           .leftJoin(users, eq(posts.authorId, users.id))
           .leftJoin(categories, eq(posts.categoryId, categories.id))
           .leftJoin(parentCategory, eq(categories.parentId, parentCategory.id))
+          .leftJoin(favCounts, eq(posts.id, favCounts.postId))
           .where(whereClause)
           .orderBy(...orderByClause)
           .limit(limit)
           .offset(skip),
+        // COUNT only needs posts — whereClause references posts.* and a categories subquery,
+        // not the joined categories alias, so the category joins are unnecessary here.
         db
           .select({ count: sql<number>`count(*)::int` })
           .from(posts)
-          .leftJoin(categories, eq(posts.categoryId, categories.id))
-          .leftJoin(parentCategory, eq(categories.parentId, parentCategory.id))
           .where(whereClause),
       ]);
       const totalCount = Number(countResult[0]?.count ?? 0);
@@ -476,15 +481,21 @@ export class PostQueries {
       whereClause = and(searchWhere, or(eq(posts.categoryId, categoryId), inArray(posts.categoryId, subIds)));
     }
 
+    // Aggregated favorites subquery — avoids correlated subquery per row for popular/trending sorts
+    const favCounts = db
+      .select({ postId: favorites.postId, cnt: sql<number>`count(*)::int`.as("cnt") })
+      .from(favorites)
+      .groupBy(favorites.postId)
+      .as("fav_counts");
+
     // Determine ordering based on sortBy
-    const popularityExpr = sql`(SELECT count(*) FROM favorites WHERE favorites."postId" = ${posts.id})`;
     const orderByClause =
       sortBy === "latest"
         ? [desc(posts.createdAt)]
         : sortBy === "popular"
-          ? [desc(popularityExpr), desc(posts.createdAt)]
+          ? [desc(sql`coalesce(${favCounts.cnt}, 0)`), desc(posts.createdAt)]
           : sortBy === "trending"
-            ? [desc(popularityExpr), desc(posts.createdAt)]
+            ? [desc(sql`coalesce(${favCounts.cnt}, 0)`), desc(posts.createdAt)]
             : [desc(rankExpr), desc(posts.createdAt)]; // "relevance" (default)
 
     const endTimer = DatabaseMetrics.startQuery();
@@ -508,15 +519,16 @@ export class PostQueries {
           .leftJoin(users, eq(posts.authorId, users.id))
           .leftJoin(categories, eq(posts.categoryId, categories.id))
           .leftJoin(parentCategory, eq(categories.parentId, parentCategory.id))
+          .leftJoin(favCounts, eq(posts.id, favCounts.postId))
           .where(whereClause)
           .orderBy(...orderByClause)
           .limit(limit)
           .offset(skip),
+        // COUNT needs the categories join because whereClause may reference categories.name via ilike
         db
           .select({ count: sql<number>`count(*)::int` })
           .from(posts)
           .leftJoin(categories, eq(posts.categoryId, categories.id))
-          .leftJoin(parentCategory, eq(categories.parentId, parentCategory.id))
           .where(whereClause),
       ]);
       const totalCount = Number(countResult[0]?.count ?? 0);
@@ -614,6 +626,13 @@ export class PostQueries {
           )
         );
       }
+      // Aggregated favorites subquery — avoids correlated subquery per row
+      const favCounts = db
+        .select({ postId: favorites.postId, cnt: sql<number>`count(*)::int`.as("cnt") })
+        .from(favorites)
+        .groupBy(favorites.postId)
+        .as("fav_counts");
+
       const rows = await db
         .select({
           post: posts,
@@ -632,6 +651,7 @@ export class PostQueries {
         .leftJoin(users, eq(posts.authorId, users.id))
         .leftJoin(categories, eq(posts.categoryId, categories.id))
         .leftJoin(parentCategory, eq(categories.parentId, parentCategory.id))
+        .leftJoin(favCounts, eq(posts.id, favCounts.postId))
         .where(
           and(
             eq(posts.isPublished, true),
@@ -639,7 +659,7 @@ export class PostQueries {
             or(...orConditions)
           )
         )
-        .orderBy(desc(sql`(SELECT count(*) FROM favorites WHERE favorites."postId" = ${posts.id})`), desc(posts.createdAt))
+        .orderBy(desc(sql`coalesce(${favCounts.cnt}, 0)`), desc(posts.createdAt))
         .limit(limit);
 
       const postIds = rows.map((r) => r.post.id);
@@ -839,8 +859,6 @@ export class PostQueries {
           count: sql<number>`count(*)::int`,
         })
         .from(posts)
-        .leftJoin(categories, eq(posts.categoryId, categories.id))
-        .leftJoin(parentCategory, eq(categories.parentId, parentCategory.id))
         .where(whereClause)
         .groupBy(posts.status, posts.isPublished, posts.isPremium, posts.isFeatured);
 

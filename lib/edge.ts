@@ -28,7 +28,7 @@
  *
  *  RUNTIME COMPATIBILITY:
  * • Works in Next.js Edge Runtime (middleware, edge API routes)
- * • No Node.js dependencies (no Redis, Prisma, or file system access)
+ * • No Node.js dependencies (no Redis, Drizzle, or file system access)
  * • Memory-only storage (automatic cleanup to prevent leaks)
  * • Console-based logging (structured JSON for external processing)
  *

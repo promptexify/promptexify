@@ -152,7 +152,9 @@ export async function POST(request: NextRequest) {
       {
         success: false,
         error: "JSON execution failed",
-        details: error instanceof Error ? error.message : "Unknown error",
+        ...(process.env.VERBOSE_ERRORS === "true" && {
+          details: error instanceof Error ? error.message : "Unknown error",
+        }),
       },
       { status: 500 }
     );

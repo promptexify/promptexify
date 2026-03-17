@@ -147,7 +147,7 @@ export const updateUserProfileAction = withCSRFProtection(
  */
 export async function getUserProfileAction() {
   try {
-    // Require authentication and get full user data (both Supabase and Prisma)
+    // Require authentication and get full user data (both Supabase and Drizzle)
     const currentUser = await getCurrentUser();
     if (!currentUser?.userData) {
       return {
@@ -179,7 +179,7 @@ export async function getUserProfileAction() {
       };
     }
 
-    // Combine Prisma data with Supabase auth data (including last_sign_in_at)
+    // Combine Drizzle data with Supabase auth data (including last_sign_in_at)
     const userActivityData = {
       ...userProfile,
       lastSignInAt: currentUser.last_sign_in_at || null,

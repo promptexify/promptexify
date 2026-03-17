@@ -22,11 +22,8 @@ export default [
   },
   {
     ignores: [
-      // Generated Prisma files
-      "app/generated/**/*",
-      "prisma/generated/**/*",
+      // Generated/build files
       "**/generated/**/*",
-      // Other generated/build files
       ".next/**/*",
       "out/**/*",
       "build/**/*",

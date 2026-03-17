@@ -201,32 +201,15 @@ export async function POST(request: NextRequest) {
 
     // Enhanced file signature validation for additional security
     let videoBuffer: Buffer;
-    let detectedType: {ext: string; mime: string} | undefined;
-    
+
     try {
       const arrayBuffer = await file.arrayBuffer();
       videoBuffer = Buffer.from(arrayBuffer);
 
-      // Custom signature validation
-      if (!validateVideoSignature(arrayBuffer, file.type)) {
-        await SecurityEvents.suspiciousFileUpload(
-          user.userData!.id,
-          file.name,
-          file.type,
-          getClientIP(request)
-        );
-        return NextResponse.json(
-          { error: "File signature doesn't match declared video type" },
-          {
-            status: 400,
-            headers: SECURITY_HEADERS,
-          }
-        );
-      }
-
-      // Additional validation using file-type library
+      // PRIMARY gate: file-type library (magic byte analysis) — more reliable
+      // than the custom signature check and must pass unconditionally.
       const { fileTypeFromBuffer } = await import("file-type");
-      detectedType = await fileTypeFromBuffer(videoBuffer);
+      const detectedType = await fileTypeFromBuffer(videoBuffer);
 
       if (!detectedType) {
         await SecurityEvents.suspiciousFileUpload(
@@ -244,7 +227,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Validate detected MIME against allowed list and browser-provided type
+      // Detected MIME must be in the allowed list and match the declared type
       if (
         !allowedVideoTypes.includes(detectedType.mime) ||
         detectedType.mime !== file.type
@@ -257,6 +240,23 @@ export async function POST(request: NextRequest) {
         );
         return NextResponse.json(
           { error: "File signature does not match declared video type" },
+          {
+            status: 400,
+            headers: SECURITY_HEADERS,
+          }
+        );
+      }
+
+      // SECONDARY gate: custom ftyp-box / magic-byte check as defense-in-depth
+      if (!validateVideoSignature(arrayBuffer, file.type)) {
+        await SecurityEvents.suspiciousFileUpload(
+          user.userData!.id,
+          file.name,
+          file.type,
+          getClientIP(request)
+        );
+        return NextResponse.json(
+          { error: "File signature doesn't match declared video type" },
           {
             status: 400,
             headers: SECURITY_HEADERS,
@@ -317,15 +317,15 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Video upload error:", error);
 
-    // Don't expose internal error details to client in production
+    // Expose internal error details only when explicitly opted-in via VERBOSE_ERRORS
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error occurred";
-    const isDevMode = process.env.NODE_ENV === "development";
+    const verboseErrors = process.env.VERBOSE_ERRORS === "true";
 
     return NextResponse.json(
       {
         error: "Failed to upload video",
-        ...(isDevMode && { details: errorMessage }),
+        ...(verboseErrors && { details: errorMessage }),
       },
       {
         status: 500,

@@ -304,6 +304,63 @@ export const rateLimitSchema = z.object({
   window: z.number().int().min(1000, "Window must be at least 1000ms"),
 });
 
+// FormData schemas for post server actions.
+// All FormData values arrive as strings; these schemas coerce them
+// to the correct types so actions never need manual string-handling.
+const postFormBaseSchema = z.object({
+  title: z
+    .string()
+    .trim()
+    .min(1, "Title is required")
+    .max(200, "Title must be 200 characters or less"),
+  slug: z
+    .string()
+    .trim()
+    .min(1, "Slug is required")
+    .max(200, "Slug must be 200 characters or less")
+    .regex(/^[a-z0-9-]+$/, "Slug can only contain lowercase letters, numbers, and hyphens")
+    .refine((v) => !v.startsWith("-") && !v.endsWith("-"), "Slug cannot start or end with hyphens")
+    .refine((v) => !v.includes("--"), "Slug cannot contain consecutive hyphens"),
+  description: z.string().max(500).trim().optional().transform((v) => v || null),
+  content: z
+    .string()
+    .trim()
+    .min(10, "Content must be at least 10 characters")
+    .max(50000, "Content must be 50,000 characters or less"),
+  category: z
+    .string()
+    .min(1, "Category is required")
+    .regex(/^[a-z0-9-]+$/, "Invalid category slug"),
+  subcategory: z
+    .string()
+    .optional()
+    .transform((v) => (!v || v === "none") ? null : v),
+  tags: z
+    .string()
+    .optional()
+    .transform((v) => (v ? v.split(",").map((t) => t.trim()).filter(Boolean) : [])),
+  uploadPath: z.string().optional().transform((v) => v || null),
+  uploadFileType: z
+    .string()
+    .optional()
+    .transform((v) => (v === "IMAGE" || v === "VIDEO" ? v : null)),
+  uploadMediaId: z.string().optional().transform((v) => v || null),
+  previewPath: z.string().optional().transform((v) => v || null),
+  previewVideoPath: z.string().optional().transform((v) => v || null),
+  blurData: z.string().optional().transform((v) => v || null),
+  // Checkboxes send "on" when checked, absent when unchecked
+  isPublished: z.string().optional().transform((v) => v === "on"),
+  isPremium: z.string().optional().transform((v) => v === "on"),
+});
+
+export const createPostFormSchema = postFormBaseSchema;
+export const updatePostFormSchema = postFormBaseSchema.extend({
+  id: z.string().uuid("Invalid post ID"),
+});
+
+export type CreatePostFormData = z.infer<typeof createPostFormSchema>;
+export type UpdatePostFormData = z.infer<typeof updatePostFormSchema>;
+
 // Type exports
 export type MagicLinkData = z.infer<typeof magicLinkSchema>;
 export type SignInData = z.infer<typeof signInSchema>;

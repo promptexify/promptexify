@@ -1,29 +1,23 @@
-import "dotenv/config";
+import { config } from "dotenv";
 import { defineConfig } from "drizzle-kit";
 
-function getDatabaseUrl(): string {
-  const url = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
-  if (!url) throw new Error("DIRECT_URL or DATABASE_URL must be set");
+// Next.js uses .env.local; load it first so it takes precedence over .env
+config({ path: ".env.local" });
+config();
 
-  // Ensure SSL is enabled for Supabase / production / Vercel environments
-  if (process.env.VERCEL || process.env.NODE_ENV === "production" || url.includes("supabase.com")) {
-    const parsed = new URL(url);
-    if (!parsed.searchParams.has("sslmode")) {
-      parsed.searchParams.set("sslmode", "require");
-    }
-    return parsed.toString();
-  }
-
-  return url;
-}
+if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL must be set");
 
 export default defineConfig({
   out: "./drizzle",
   schema: "./lib/db/schema.ts",
   dialect: "postgresql",
   dbCredentials: {
-    url: getDatabaseUrl(),
+    url: process.env.DATABASE_URL,
   },
+  tablesFilter: [
+    "users", "categories", "tags", "posts", "post_to_tag",
+    "bookmarks", "favorites", "logs", "media", "settings",
+  ],
   entities: {
     roles: {
       provider: "supabase",

@@ -102,7 +102,7 @@ export async function signInWithPassword(data: SignInData) {
     }
 
     if (authData.user) {
-      // Update or create user in Prisma database
+      // Update or create user in Drizzle database
       await upsertUserInDatabase(authData.user);
     }
 

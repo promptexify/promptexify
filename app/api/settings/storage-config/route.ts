@@ -26,30 +26,17 @@ export async function GET() {
       });
     }
 
-    // Defaults if no settings
-    return NextResponse.json({
-      success: true,
-      config: {
-        storageType: "S3",
-        maxImageSize: 2097152,
-        maxVideoSize: 10485760,
-        enableCompression: true,
-        compressionQuality: 80,
-      },
-    });
+    // No settings found — fail closed rather than silently defaulting to S3
+    return NextResponse.json(
+      { success: false, error: "Storage configuration not found" },
+      { status: 404, headers: SECURITY_HEADERS }
+    );
   } catch (error) {
     console.error("Error fetching storage config:", error);
-    return NextResponse.json({
-      success: false,
-      error: "Failed to fetch storage configuration",
-      config: {
-        storageType: "S3",
-        maxImageSize: 2097152,
-        maxVideoSize: 10485760,
-        enableCompression: true,
-        compressionQuality: 80,
-      },
-    });
+    return NextResponse.json(
+      { success: false, error: "Failed to fetch storage configuration" },
+      { status: 500, headers: SECURITY_HEADERS }
+    );
   }
 }
 

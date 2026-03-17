@@ -1,61 +1,53 @@
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { CSRFProtection, SecurityHeaders } from "@/lib/security/csp";
 
 /**
  * GET /api/csrf
- * Returns a CSRF token for client-side forms and sets the corresponding
- * httpOnly cookie so the middleware can validate subsequent mutating requests.
+ * Returns a CSRF token and sets the corresponding httpOnly cookie.
+ *
+ * Token is reused from the existing cookie if present, otherwise a new one
+ * is generated. The JSON body and Set-Cookie always carry the same value —
+ * a single response.cookies.set() call avoids the double-Set-Cookie conflict
+ * that occurred when getOrCreateToken() also wrote via next/headers cookies().
+ *
+ * The `secure` flag is derived from the actual request protocol so that
+ * `next start` on localhost (HTTP) works without cookie rejection.
  */
-export async function GET() {
-  try {
-    const token = await CSRFProtection.getOrCreateToken();
-    const securityHeaders = SecurityHeaders.getSecurityHeaders();
-    const isProduction = process.env.NODE_ENV === "production";
+export async function GET(request: NextRequest) {
+  const cookieName = CSRFProtection.getCookieName();
 
-    const response = NextResponse.json(
-      { token },
-      {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-          "Cache-Control": "no-store, no-cache, must-revalidate, private",
-          ...securityHeaders,
-        },
-      }
-    );
+  // Reuse existing token so concurrent fetches (e.g. multiple useCSRF mounts)
+  // all get the same value and never race to create different tokens.
+  const existingToken = request.cookies.get(cookieName)?.value;
+  const token = existingToken ?? CSRFProtection.generateToken();
 
-    // Set the CSRF cookie directly on the response object for reliability.
-    // Using `cookies().set()` from `next/headers` can be unreliable when
-    // middleware rewrites response headers (e.g. Supabase session refresh).
-    const cookieOptions = {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: "strict" as const,
-      path: "/",
-      maxAge: 60 * 60 * 24,
-    };
+  // Base `secure` on the actual protocol, not NODE_ENV. This lets
+  // `next start` work over plain HTTP locally while still enforcing secure
+  // cookies behind a TLS terminator (where x-forwarded-proto is "https").
+  const proto =
+    request.headers.get("x-forwarded-proto") ??
+    (request.url.startsWith("https") ? "https" : "http");
+  const secure = proto === "https";
 
-    response.cookies.set(CSRFProtection.getCookieName(), token, cookieOptions);
-    response.cookies.set(CSRFProtection.getBackupCookieName(), token, cookieOptions);
-
-    return response;
-  } catch (error) {
-    console.error("CSRF token generation error:", error);
-
-    const securityHeaders = SecurityHeaders.getSecurityHeaders();
-
-    return NextResponse.json(
-      {
-        error: "Failed to generate CSRF token",
-        code: "CSRF_GENERATION_ERROR",
+  const response = NextResponse.json(
+    { token },
+    {
+      status: 200,
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate, private",
+        ...SecurityHeaders.getSecurityHeaders(),
       },
-      {
-        status: 500,
-        headers: {
-          "Content-Type": "application/json",
-          ...securityHeaders,
-        },
-      }
-    );
-  }
+    }
+  );
+
+  // Single Set-Cookie — guarantees body token === cookie token.
+  response.cookies.set(cookieName, token, {
+    httpOnly: true,
+    secure,
+    sameSite: "strict",
+    path: "/",
+    maxAge: 60 * 60 * 24,
+  });
+
+  return response;
 }

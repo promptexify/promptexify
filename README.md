@@ -28,8 +28,8 @@ A comprehensive AI prompt directory for ChatGPT, Claude, Gemini, AI Code Editor,
 ## Tech Stack
 
 - **Framework**: Next.js 15 (App Router) with Turbopack, React 18
-- **Database**: PostgreSQL with Prisma ORM (client generated to `app/generated/prisma`)
-- **Authentication**: Supabase Auth (sessions; users mirrored to Prisma `users` table)
+- **Database**: PostgreSQL with Drizzle ORM (schema at `lib/db/schema.ts`, migrations in `drizzle/`)
+- **Authentication**: Supabase Auth (sessions; users mirrored to Drizzle `users` table)
 - **Styling**: Tailwind CSS + Shadcn UI
 - **Queue**: BullMQ with Redis (rate limiting and background jobs; in-memory fallback when Redis unavailable)
 - **Storage**: AWS S3, DigitalOcean Spaces, or LOCAL — selectable in DB `settings` table
@@ -125,11 +125,11 @@ See `env.template` for required and optional variables, including:
 | Command | Description |
 |--------|-------------|
 | `npm run dev` | Start dev server (Turbopack) |
-| `npm run build` | Generate Prisma client, run migrations, push schema, build Next.js |
+| `npm run build` | Build Next.js application |
 | `npm start` | Start production server |
 | `npm run db:migrate` | Run pending migrations |
 | `npm run db:push` | Push schema without migrations |
-| `npm run db:studio` | Open Prisma Studio |
+| `npm run db:studio` | Open Drizzle Studio |
 | `npm run db:seed` | Seed database |
 | `npm run db:reset` | Reset database |
 | `npm run worker` | Start BullMQ worker (content automation, etc.) |
@@ -172,14 +172,14 @@ app/
 
 ```
 ├── app/                  # Next.js App Router
-│   └── generated/prisma/ # Generated Prisma client (import from @/app/generated/prisma)
 ├── components/           # React components
 ├── lib/
+│   ├── db/               # Drizzle ORM: schema.ts, index.ts (singleton db client)
 │   ├── security/         # CSP, CSRF, sanitize, audit, etc.
 │   ├── auth.ts           # getCurrentUser, requireAuth, requireAdmin
 │   ├── cache.ts          # unstable_cache + Redis/memory
-│   ├── query.ts          # PostQueries, MetadataQueries
-│   └── prisma.ts         # Singleton client, withTransaction, withErrorHandling
+│   └── query.ts          # PostQueries, MetadataQueries
+├── drizzle/              # SQL migrations + relations.ts
 ├── actions/              # Server actions (CSRF-protected)
 ├── middleware.ts         # Session, CSP, CSRF, rate limiting
 └── scripts/

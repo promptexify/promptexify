@@ -182,7 +182,7 @@ export class AutomationService {
       console.error("❌ Error during content generation:", error);
       throw error;
     } finally {
-      // intentionally not disconnecting the global Prisma client here
+      // intentionally not disconnecting the global Drizzle client here
     }
   }
 

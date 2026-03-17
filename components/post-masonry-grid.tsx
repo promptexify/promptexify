@@ -342,7 +342,7 @@ export function PostMasonryGrid({ posts, ...rest }: PostMasonryGridProps) {
 
         // Animate them in with stagger
         newPosts.forEach((_, index) => {
-          setTimeout(() => {}, index * 150); // 150ms delay between each post
+          setTimeout(() => { }, index * 150); // 150ms delay between each post
         });
 
         setPreviousPostCount(posts.length);
@@ -428,13 +428,13 @@ export function PostMasonryGrid({ posts, ...rest }: PostMasonryGridProps) {
                     style={
                       // Apply dynamic aspect ratio to images preview and videos preview only
                       (post.previewPath && post.uploadFileType === "IMAGE") ||
-                      (post.previewVideoPath && post.uploadFileType === "VIDEO")
+                        (post.previewVideoPath && post.uploadFileType === "VIDEO")
                         ? getDynamicAspectRatio(post)
                         : {
-                            height: "auto",
-                            minHeight: "120px",
-                            maxHeight: "200px",
-                          }
+                          height: "auto",
+                          minHeight: "120px",
+                          maxHeight: "200px",
+                        }
                     }
                   >
                     {post.previewPath && post.uploadFileType === "IMAGE" ? (
@@ -599,7 +599,6 @@ export function PostMasonryGrid({ posts, ...rest }: PostMasonryGridProps) {
               <div className="z-10 mx-3 border border-t-0 rounded-b-lg border-black/20 dark:border-white/20">
                 <div className="bg-background-muted backdrop-blur-sm rounded-b-lg px-4 py-2 text-xs text-muted-foreground">
                   <span className="line-clamp-2">
-                    <span className="font-medium">Prompt: </span>
 
                     {(() => {
                       const text = post.description || post.content || post.title;

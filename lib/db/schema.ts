@@ -1,11 +1,10 @@
 /**
- * Drizzle schema matching existing Prisma/Postgres tables.
- * Column names follow Prisma defaults (camelCase unless @map in schema).
+ * Drizzle ORM schema for all application tables.
+ * Column names use camelCase matching the existing Postgres table structure.
  *
- * RLS policies mirror the original Prisma migration policies and protect
- * data when accessed via the Supabase PostgREST API (anon/authenticated).
- * Server-side Drizzle queries use a role with BYPASSRLS so they are
- * unaffected, but RLS acts as a defense-in-depth layer.
+ * RLS policies protect data when accessed via the Supabase PostgREST API
+ * (anon/authenticated roles). Server-side Drizzle queries use a role with
+ * BYPASSRLS so they are unaffected, but RLS acts as a defense-in-depth layer.
  */
 
 import {
@@ -20,13 +19,15 @@ import {
   uniqueIndex,
   index,
   pgPolicy,
+  primaryKey,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { relations } from "drizzle-orm";
 import { authenticatedRole } from "drizzle-orm/supabase";
 
 // -----------------------------------------------------------------------------
-// Enums (match Prisma schema)
+// Enums
 // -----------------------------------------------------------------------------
 
 export const userTypeEnum = pgEnum("UserType", ["FREE", "PREMIUM"]);
@@ -40,10 +41,17 @@ export const postStatusEnum = pgEnum("PostStatus", [
 ]);
 export const uploadFileTypeEnum = pgEnum("UploadFileType", ["IMAGE", "VIDEO"]);
 export const storageTypeEnum = pgEnum("StorageType", ["S3", "LOCAL", "DOSPACE"]);
+export const logSeverityEnum = pgEnum("LogSeverity", [
+  "LOW",
+  "MEDIUM",
+  "HIGH",
+  "CRITICAL",
+]);
 
-// Type aliases for use outside schema (replacing Prisma enums)
+// Type aliases for use outside schema
 export type PostStatus = "DRAFT" | "PENDING_APPROVAL" | "APPROVED" | "REJECTED";
 export type StorageType = "S3" | "LOCAL" | "DOSPACE";
+export type LogSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
 // -----------------------------------------------------------------------------
 // Reusable SQL fragments for RLS policies
@@ -51,8 +59,11 @@ export type StorageType = "S3" | "LOCAL" | "DOSPACE";
 
 const authUid = sql`auth.uid()::text`;
 const isAdmin = sql`current_user_is_admin()`;
-const isOwnerOrAdmin = (col: string) =>
-  sql.raw(`("${col}" = auth.uid()::text OR current_user_is_admin())`);
+const OWNER_COLS = new Set(["authorId", "uploadedBy", "userId"]);
+const isOwnerOrAdmin = (col: string) => {
+  if (!OWNER_COLS.has(col)) throw new Error(`isOwnerOrAdmin: unknown column "${col}"`);
+  return sql.raw(`("${col}" = auth.uid()::text OR current_user_is_admin())`);
+};
 
 // -----------------------------------------------------------------------------
 // Users
@@ -65,8 +76,8 @@ export const users = pgTable(
     email: text("email").notNull().unique(),
     name: text("name"),
     avatar: text("avatar"),
-    type: userTypeEnum("type").default("FREE"),
-    role: userRoleEnum("role").default("USER"),
+    type: userTypeEnum("type").default("FREE").notNull(),
+    role: userRoleEnum("role").default("USER").notNull(),
     oauth: oauthProviderEnum("oauth").notNull(),
     stripeCustomerId: text("stripe_customer_id").unique(),
     stripeSubscriptionId: text("stripe_subscription_id").unique(),
@@ -79,7 +90,6 @@ export const users = pgTable(
   (t) => [
     index("users_id_role_idx").on(t.id, t.role),
     index("users_id_type_stripe_idx").on(t.id, t.type, t.stripeCurrentPeriodEnd),
-    index("users_email_idx").on(t.email),
     index("users_stripe_customer_id_idx").on(t.stripeCustomerId),
     index("users_type_role_idx").on(t.type, t.role),
     index("users_created_at_desc_idx").on(t.createdAt),
@@ -123,14 +133,12 @@ export const categories = pgTable(
     name: text("name").notNull().unique(),
     slug: text("slug").notNull().unique(),
     description: text("description"),
-    parentId: text("parentId"),
+    parentId: text("parentId").references((): AnyPgColumn => categories.id, { onDelete: "set null" }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().notNull(),
   },
   (t) => [
     index("categories_parent_id_idx").on(t.parentId),
-    index("categories_name_idx").on(t.name),
-    index("categories_slug_idx").on(t.slug),
     index("categories_parent_id_name_idx").on(t.parentId, t.name),
     pgPolicy("categories_select_all", {
       as: "permissive",
@@ -174,8 +182,6 @@ export const tags = pgTable(
     updatedAt: timestamp("updatedAt").defaultNow().notNull(),
   },
   (t) => [
-    index("tags_name_idx").on(t.name),
-    index("tags_slug_idx").on(t.slug),
     index("tags_created_at_desc_idx").on(t.createdAt),
     pgPolicy("tags_select_all", {
       as: "permissive",
@@ -217,10 +223,10 @@ export const posts = pgTable(
     slug: text("slug").notNull().unique(),
     description: text("description"),
     content: text("content").notNull(),
-    isPremium: boolean("isPremium").default(false),
-    isFeatured: boolean("isFeatured").default(false),
-    isPublished: boolean("isPublished").default(false),
-    status: postStatusEnum("status").default("DRAFT"),
+    isPremium: boolean("isPremium").default(false).notNull(),
+    isFeatured: boolean("isFeatured").default(false).notNull(),
+    isPublished: boolean("isPublished").default(false).notNull(),
+    status: postStatusEnum("status").default("DRAFT").notNull(),
     authorId: text("authorId").notNull(),
     categoryId: text("categoryId").notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -287,7 +293,7 @@ export const posts = pgTable(
 ).enableRLS();
 
 // -----------------------------------------------------------------------------
-// Post <-> Tag many-to-many (Prisma implicit table name: _PostToTag)
+// Post <-> Tag many-to-many (_PostToTag table — legacy name kept for DB compatibility)
 // -----------------------------------------------------------------------------
 
 export const postToTag = pgTable(
@@ -300,7 +306,9 @@ export const postToTag = pgTable(
       .notNull()
       .references(() => tags.id, { onDelete: "cascade" }),
   },
-  () => [
+  (t) => [
+    primaryKey({ columns: [t.A, t.B] }),
+    index("postToTag_a_idx").on(t.A),
     pgPolicy("_PostToTag_select_all", {
       as: "permissive",
       for: "select",
@@ -338,8 +346,8 @@ export const bookmarks = pgTable(
   "bookmarks",
   {
     id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
-    userId: text("userId").notNull(),
-    postId: text("postId").notNull(),
+    userId: text("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+    postId: text("postId").notNull().references(() => posts.id, { onDelete: "cascade" }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   (t) => [
@@ -382,8 +390,8 @@ export const favorites = pgTable(
   "favorites",
   {
     id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
-    userId: text("userId").notNull(),
-    postId: text("postId").notNull(),
+    userId: text("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+    postId: text("postId").notNull().references(() => posts.id, { onDelete: "cascade" }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   (t) => [
@@ -428,13 +436,13 @@ export const logs = pgTable(
   {
     id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
     action: text("action").notNull(),
-    userId: text("userId"),
+    userId: text("userId").references(() => users.id, { onDelete: "set null" }),
     entityType: text("entityType").notNull(),
     entityId: text("entityId"),
     ipAddress: text("ipAddress"),
     userAgent: text("userAgent"),
     metadata: jsonb("metadata"),
-    severity: text("severity").notNull(),
+    severity: logSeverityEnum("severity").notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   (t) => [
@@ -528,7 +536,7 @@ export const settings = pgTable(
   "settings",
   {
     id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
-    storageType: storageTypeEnum("storageType").default("S3"),
+    storageType: storageTypeEnum("storageType").default("S3").notNull(),
     s3BucketName: text("s3BucketName"),
     s3Region: text("s3Region"),
     s3AccessKeyId: text("s3AccessKeyId"),
@@ -539,23 +547,23 @@ export const settings = pgTable(
     doAccessKeyId: text("doAccessKeyId"),
     doSecretKey: text("doSecretKey"),
     doCdnUrl: text("doCdnUrl"),
-    localBasePath: text("localBasePath").default("/uploads"),
-    localBaseUrl: text("localBaseUrl").default("/uploads"),
-    maxImageSize: integer("maxImageSize").default(2097152),
-    maxVideoSize: integer("maxVideoSize").default(10485760),
-    enableCompression: boolean("enableCompression").default(true),
-    compressionQuality: integer("compressionQuality").default(80),
-    maxTagsPerPost: integer("maxTagsPerPost").default(20),
-    enableCaptcha: boolean("enableCaptcha").default(false),
-    requireApproval: boolean("requireApproval").default(true),
-    maxPostsPerDay: integer("maxPostsPerDay").default(10),
-    maxUploadsPerHour: integer("maxUploadsPerHour").default(20),
-    enableAuditLogging: boolean("enableAuditLogging").default(true),
+    localBasePath: text("localBasePath").default("/uploads").notNull(),
+    localBaseUrl: text("localBaseUrl").default("/uploads").notNull(),
+    maxImageSize: integer("maxImageSize").default(2097152).notNull(),
+    maxVideoSize: integer("maxVideoSize").default(10485760).notNull(),
+    enableCompression: boolean("enableCompression").default(true).notNull(),
+    compressionQuality: integer("compressionQuality").default(80).notNull(),
+    maxTagsPerPost: integer("maxTagsPerPost").default(20).notNull(),
+    enableCaptcha: boolean("enableCaptcha").default(false).notNull(),
+    requireApproval: boolean("requireApproval").default(true).notNull(),
+    maxPostsPerDay: integer("maxPostsPerDay").default(10).notNull(),
+    maxUploadsPerHour: integer("maxUploadsPerHour").default(20).notNull(),
+    enableAuditLogging: boolean("enableAuditLogging").default(true).notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().notNull(),
     updatedBy: text("updatedBy").notNull(),
-    postsPageSize: integer("postsPageSize").default(12),
-    featuredPostsLimit: integer("featuredPostsLimit").default(12),
+    postsPageSize: integer("postsPageSize").default(12).notNull(),
+    featuredPostsLimit: integer("featuredPostsLimit").default(12).notNull(),
   },
   (t) => [
     index("settings_storage_type_idx").on(t.storageType),

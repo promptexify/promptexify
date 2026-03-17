@@ -30,7 +30,7 @@ export function PostTextBaseCard({ title, className }: PostTextBaseCardProps) {
     <div
       ref={containerRef}
       className={cn(
-        "group relative bg-gradient-to-br from-zinc-50 to-zinc-300 dark:from-zinc-900 dark:to-zinc-600 flex flex-col items-center justify-center gap-2 pt-12 pb-18 rounded-lg overflow-hidden",
+        "group relative bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-900 dark:to-zinc-800 flex flex-col items-center justify-center gap-2 pt-12 pb-18 rounded-lg overflow-hidden",
         className
       )}
     >

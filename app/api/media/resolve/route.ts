@@ -31,8 +31,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Relative media paths must start with a known prefix or be full https URLs.
+    // This prevents SSRF/path-disclosure by blocking traversal attempts and
+    // arbitrary path construction before any storage URL is resolved.
+    const VALID_PATH_PREFIXES = ["images/", "videos/", "preview/", "data-uploads/"];
+    const mediaPathSchema = z
+      .string()
+      .min(1)
+      .refine(
+        (p) =>
+          p.startsWith("https://") ||
+          p.startsWith("http://") ||
+          VALID_PATH_PREFIXES.some((prefix) => p.startsWith(prefix)),
+        "Path must start with images/, videos/, preview/, data-uploads/, or be a full URL"
+      )
+      .refine((p) => !p.includes("..") && !p.includes("\0"), "Invalid path");
+
     const bodySchema = z.object({
-      paths: z.array(z.string().min(1)).max(50).nonempty("paths array required"), // Limit to 50 paths per request
+      paths: z.array(mediaPathSchema).max(50).nonempty("paths array required"),
     });
 
     const parsed = bodySchema.safeParse(await request.json());

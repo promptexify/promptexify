@@ -58,9 +58,16 @@ export async function GET(
 
     // Construct the preview path
     const previewPath = path.join("/");
-    
-    // Security: Validate the path doesn't contain directory traversal attempts
-    if (previewPath.includes("..") || previewPath.includes("//")) {
+
+    // Security: Validate path segments — reject traversal and null bytes
+    const invalidSegment = path.some(
+      (segment) =>
+        segment === ".." ||
+        segment === "." ||
+        segment.includes("\0") ||
+        segment.includes("/")
+    );
+    if (invalidSegment || previewPath.includes("..") || previewPath.includes("//")) {
       await SecurityEvents.inputValidationFailure(
         undefined,
         "previewPath",
@@ -129,14 +136,29 @@ export async function GET(
     // For local storage, we need to serve the file directly
     if (storageType === "LOCAL") {
       const { readFile } = await import("fs/promises");
-      const { join } = await import("path");
+      const { resolve } = await import("path");
       const { existsSync } = await import("fs");
 
       // Construct the correct file path for local storage
       const basePath = config.localBasePath || "/uploads";
       // The previewPath from the URL params should not include "preview/" prefix
       // since we're serving from the preview directory
-      const filePath = join(process.cwd(), "public", basePath.replace(/^\//, ""), "preview", previewPath);
+      const baseDir = resolve(process.cwd(), "public", basePath.replace(/^\//, ""), "preview");
+      const filePath = resolve(baseDir, previewPath);
+
+      // SECURITY: Ensure resolved path is still within the allowed base directory
+      if (!filePath.startsWith(baseDir + "/") && filePath !== baseDir) {
+        await SecurityEvents.inputValidationFailure(
+          undefined,
+          "previewPath",
+          previewPath,
+          getClientIP(request)
+        );
+        return NextResponse.json(
+          { error: "Invalid preview path" },
+          { status: 400, headers: SECURITY_HEADERS }
+        );
+      }
       
       if (!existsSync(filePath)) {
         console.error("Preview file not found at:", filePath);

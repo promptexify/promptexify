@@ -99,7 +99,7 @@ export async function updateSession(request: NextRequest) {
   }
 
   // For authenticated users, we'll handle role-based redirects in the pages themselves
-  // since we can't access Prisma in middleware. This is more performant anyway.
+  // since we can't access Drizzle in middleware. This is more performant anyway.
   // The main authentication check is done above.
 
   // Redirect authenticated users away from auth pages

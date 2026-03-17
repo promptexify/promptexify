@@ -103,6 +103,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate file extension matches the declared MIME type
+    const allowedExtensions: Record<string, string[]> = {
+      "text/csv": [".csv"],
+      "application/json": [".json"],
+      "application/vnd.ms-excel": [".xls", ".csv"],
+    };
+    const sanitized = sanitizeFilename(fileName).toLowerCase();
+    const ext = sanitized.includes(".") ? `.${sanitized.split(".").pop()}` : "";
+    const validExts = allowedExtensions[fileType] ?? [];
+    if (!ext || !validExts.includes(ext)) {
+      return NextResponse.json(
+        { error: "File extension does not match declared file type" },
+        { status: 400 }
+      );
+    }
+
     const command = new PutObjectCommand({
       Bucket: BUCKET_NAME,
       Key: key,
