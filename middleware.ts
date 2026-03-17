@@ -70,7 +70,6 @@ export async function middleware(request: NextRequest) {
       const shouldValidateCSRF = !shouldSkipCSRF;
 
       if (shouldValidateCSRF && pathname.startsWith("/api/")) {
-        // Always expect token in header for API routes
         const csrfToken = CSRFProtection.getTokenFromHeaders(request);
 
         if (!csrfToken) {
@@ -80,7 +79,15 @@ export async function middleware(request: NextRequest) {
           );
         }
 
-        const isValid = await CSRFProtection.validateToken(csrfToken);
+        // Read CSRF cookie directly from the request object — more reliable
+        // in Edge Middleware than `cookies()` from `next/headers`.
+        const csrfCookieName = CSRFProtection.getCookieName();
+        const csrfCookieToken =
+          request.cookies.get(csrfCookieName)?.value ||
+          request.cookies.get(CSRFProtection.getBackupCookieName())?.value ||
+          null;
+
+        const isValid = await CSRFProtection.validateToken(csrfToken, csrfCookieToken);
         if (!isValid) {
           return NextResponse.json(
             { error: "Invalid CSRF token", code: "CSRF_TOKEN_INVALID" },

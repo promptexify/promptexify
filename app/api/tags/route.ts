@@ -17,7 +17,6 @@ import {
   SECURITY_HEADERS,
 } from "@/lib/security/sanitize";
 import { revalidateCache, CACHE_TAGS } from "@/lib/cache";
-import { CSRFProtection } from "@/lib/security/csp";
 
 export async function GET(request: NextRequest) {
   try {
@@ -95,17 +94,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const csrfToken = CSRFProtection.getTokenFromHeaders(request);
-    const isValidCSRF = await CSRFProtection.validateToken(csrfToken);
-    if (!isValidCSRF) {
-      return NextResponse.json(
-        { error: "Invalid CSRF token" },
-        {
-          status: 403,
-          headers: SECURITY_HEADERS,
-        }
-      );
-    }
+    // CSRF validation is handled by middleware for all POST /api/* requests.
     // Authentication check
     const user = await getCurrentUser();
     if (!user) {

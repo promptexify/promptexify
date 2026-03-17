@@ -147,41 +147,35 @@ export class CSRFProtection {
   }
 
   /**
-   * Validate CSRF token with improved error handling and recovery
+   * Validate CSRF token with improved error handling and recovery.
+   * 
+   * @param submittedToken - token from request header or form data
+   * @param preReadCookieToken - optional pre-read cookie value; when provided,
+   *   skips the `cookies()` lookup (useful in Edge Middleware where
+   *   `request.cookies` is more reliable than `next/headers` cookies()).
    */
-  static async validateToken(submittedToken: string | null): Promise<boolean> {
+  static async validateToken(
+    submittedToken: string | null,
+    preReadCookieToken?: string | null,
+  ): Promise<boolean> {
     if (!submittedToken) {
       console.warn("[SECURITY] CSRF token missing from request");
       return false;
     }
 
-    const cookieToken = await this.getTokenFromCookie();
+    const cookieToken =
+      preReadCookieToken !== undefined
+        ? preReadCookieToken
+        : await this.getTokenFromCookie();
 
-    // If no cookie token found, try to generate a new one for recovery
     if (!cookieToken) {
       console.warn(
-        "[SECURITY] CSRF validation failed: missing stored token, attempting recovery"
+        "[SECURITY] CSRF validation failed: no stored token found"
       );
-
-      try {
-        // Try to generate a new token and set it
-        const newToken = this.generateToken();
-        await this.setToken(newToken);
-        if (process.env.NODE_ENV !== "production") {
-          console.log("[SECURITY] Generated new CSRF token for session recovery");
-        }
-        
-        // For this request, still return false since the submitted token
-        // won't match the newly generated one
-        return false;
-      } catch {
-        console.error("[SECURITY] Failed to recover CSRF token");
-        return false;
-      }
+      return false;
     }
 
     try {
-      // Use timing-safe comparison
       const isValid = await this.timingSafeEqual(submittedToken, cookieToken);
       
       if (!isValid) {
@@ -193,6 +187,20 @@ export class CSRFProtection {
       console.error("[SECURITY] Error during CSRF token validation");
       return false;
     }
+  }
+
+  /**
+   * Get the CSRF cookie name for the current environment.
+   */
+  static getCookieName(): string {
+    return this.CSRF_COOKIE_NAME;
+  }
+
+  /**
+   * Get the backup CSRF cookie name.
+   */
+  static getBackupCookieName(): string {
+    return `${this.CSRF_COOKIE_NAME}-backup`;
   }
 
   /**
