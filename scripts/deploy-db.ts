@@ -36,6 +36,7 @@ async function main() {
   const client = postgres(connectionString, {
     max: 1,
     prepare: false,
+    ssl: connectionString.includes("localhost") ? false : "require",
   });
   const db = drizzle(client);
 
