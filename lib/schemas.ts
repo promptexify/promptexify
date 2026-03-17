@@ -316,11 +316,18 @@ const postFormBaseSchema = z.object({
   slug: z
     .string()
     .trim()
-    .min(1, "Slug is required")
     .max(200, "Slug must be 200 characters or less")
-    .regex(/^[a-z0-9-]+$/, "Slug can only contain lowercase letters, numbers, and hyphens")
-    .refine((v) => !v.startsWith("-") && !v.endsWith("-"), "Slug cannot start or end with hyphens")
-    .refine((v) => !v.includes("--"), "Slug cannot contain consecutive hyphens"),
+    .optional()
+    .transform((v) => v || null)
+    .refine(
+      (v) => !v || /^[a-z0-9-]+$/.test(v),
+      "Slug can only contain lowercase letters, numbers, and hyphens"
+    )
+    .refine(
+      (v) => !v || (!v.startsWith("-") && !v.endsWith("-")),
+      "Slug cannot start or end with hyphens"
+    )
+    .refine((v) => !v || !v.includes("--"), "Slug cannot contain consecutive hyphens"),
   description: z.string().max(500).trim().optional().transform((v) => v || null),
   content: z
     .string()

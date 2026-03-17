@@ -44,9 +44,15 @@ function isEdgeRuntime(): boolean {
   );
 }
 
+// Singleton Redis client — created once and reused across requests.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _redisClient: any | null = null;
+let _redisClientInitialized = false;
+
 /**
- * Get Redis client with runtime detection
- * Returns null in Edge Runtime to avoid Node.js API usage
+ * Get Redis client with runtime detection.
+ * Returns a singleton instance so connections are not leaked.
+ * Returns null in Edge Runtime to avoid Node.js API usage.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function getRedisClient(): Promise<any> {
@@ -55,8 +61,15 @@ async function getRedisClient(): Promise<any> {
     return null;
   }
 
+  // Return cached client if already initialized
+  if (_redisClientInitialized) {
+    return _redisClient;
+  }
+
   const redisUrl = process.env.REDIS_URL;
   if (!redisUrl) {
+    _redisClientInitialized = true;
+    _redisClient = null;
     return null;
   }
 
@@ -66,15 +79,18 @@ async function getRedisClient(): Promise<any> {
       "ioredis"
     )) as typeof import("ioredis");
 
-    const redis = new Redis(redisUrl, {
+    _redisClient = new Redis(redisUrl, {
       connectTimeout: 3000,
       lazyConnect: false,
       maxRetriesPerRequest: 1,
     });
 
-    return redis;
+    _redisClientInitialized = true;
+    return _redisClient;
   } catch (error) {
     console.error("Failed to create Redis client:", error);
+    _redisClientInitialized = true;
+    _redisClient = null;
     return null;
   }
 }

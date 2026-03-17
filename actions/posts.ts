@@ -162,9 +162,10 @@ export const createPostAction = withCSRFProtection(
           .returning();
         if (!inserted) throw new Error("Failed to create post");
 
-        if (tagIds.length > 0) {
+        const uniqueTagIds = [...new Set(tagIds)];
+        if (uniqueTagIds.length > 0) {
           await tx.insert(postToTag).values(
-            tagIds.map((B) => ({ A: inserted.id, B }))
+            uniqueTagIds.map((B) => ({ A: inserted.id, B }))
           );
         }
         return { newPost: inserted };
