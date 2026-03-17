@@ -4,6 +4,7 @@ DROP INDEX "categories_slug_idx";--> statement-breakpoint
 DROP INDEX "tags_name_idx";--> statement-breakpoint
 DROP INDEX "tags_slug_idx";--> statement-breakpoint
 DROP INDEX "users_email_idx";--> statement-breakpoint
+DELETE FROM "logs" WHERE "severity" NOT IN ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL');--> statement-breakpoint
 ALTER TABLE "logs" ALTER COLUMN "severity" SET DATA TYPE "public"."LogSeverity" USING "severity"::"public"."LogSeverity";--> statement-breakpoint
 ALTER TABLE "posts" ALTER COLUMN "isPremium" SET NOT NULL;--> statement-breakpoint
 ALTER TABLE "posts" ALTER COLUMN "isFeatured" SET NOT NULL;--> statement-breakpoint
