@@ -14,16 +14,32 @@ import {
   type MagicLinkData,
 } from "@/lib/schemas";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { withCSRFProtection, handleSecureActionError } from "@/lib/security/csp";
+import { rateLimits } from "@/lib/security/limits";
 
 // Helper function to handle authentication redirects properly
 function handleAuthRedirect(): never {
   redirect("/signin");
 }
 
+/** Extract client IP from server action request headers */
+async function getActionClientIP(): Promise<string> {
+  const hdrs = await headers();
+  const forwarded = hdrs.get("x-forwarded-for");
+  const realIp = hdrs.get("x-real-ip");
+  return forwarded?.split(",")[0]?.trim() || realIp || "unknown";
+}
+
 // Re-export auth functions as server actions with CSRF protection
 export const signInAction = withCSRFProtection(async (formData: FormData) => {
   try {
+    const ip = await getActionClientIP();
+    const rl = await rateLimits.auth(`auth:signin:${ip}`);
+    if (!rl.allowed) {
+      return { error: "Too many sign-in attempts. Please try again later." };
+    }
+
     // Extract data from FormData
     const data: SignInData = {
       email: formData.get("email") as string,
@@ -38,6 +54,12 @@ export const signInAction = withCSRFProtection(async (formData: FormData) => {
 
 export const signUpAction = withCSRFProtection(async (formData: FormData) => {
   try {
+    const ip = await getActionClientIP();
+    const rl = await rateLimits.auth(`auth:signup:${ip}`);
+    if (!rl.allowed) {
+      return { error: "Too many sign-up attempts. Please try again later." };
+    }
+
     // Extract data from FormData
     const data: SignUpData = {
       email: formData.get("email") as string,
@@ -54,6 +76,13 @@ export const signUpAction = withCSRFProtection(async (formData: FormData) => {
 export const magicLinkAction = withCSRFProtection(
   async (formData: FormData) => {
     try {
+      const ip = await getActionClientIP();
+      // Rate limit by IP — prevents email spam / Supabase OTP quota exhaustion
+      const rl = await rateLimits.auth(`auth:magic:${ip}`);
+      if (!rl.allowed) {
+        return { error: "Too many requests. Please wait before requesting another link." };
+      }
+
       // Extract data from FormData
       const data: MagicLinkData = {
         email: formData.get("email") as string,
