@@ -11,6 +11,12 @@
 
 A comprehensive AI prompt directory for ChatGPT, Claude, Gemini, AI Code Editor, and more. Discover, share, and manage high-quality AI prompts with powerful search, categorization, and collaboration features.
 
+## Demo
+
+| Directory | Admin Dashboard |
+|-----------|----------------|
+| ![Promptexify Directory](public/promptexify-directory.webp) | ![Promptexify Dashboard](public/promptexify-dashboard.webp) |
+
 ## Features
 
 - **Comprehensive Prompt Library**: Browse thousands of tested AI prompts
