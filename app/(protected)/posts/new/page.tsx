@@ -64,10 +64,12 @@ export default function NewPostPage() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [pendingTags, setPendingTags] = useState<string[]>([]);
   const [maxTagsPerPost, setMaxTagsPerPost] = useState<number>(15);
+  const [allowUserPosts, setAllowUserPosts] = useState<boolean>(true);
+  const [allowUserUploads, setAllowUserUploads] = useState<boolean>(true);
 
 
 
-  // Redirect if not authenticated or not authorized
+  // Redirect if not authenticated, not authorized, or user submissions are disabled
   useEffect(() => {
     if (!loading) {
       if (!user) {
@@ -78,8 +80,13 @@ export default function NewPostPage() {
         router.push("/dashboard");
         return;
       }
+      // Non-admins are blocked when the kill switch is off
+      if (user.userData?.role !== "ADMIN" && !allowUserPosts) {
+        router.push("/dashboard");
+        return;
+      }
     }
-  }, [user, loading, router]);
+  }, [user, loading, router, allowUserPosts]);
 
   // Fetch categories and tags
   useEffect(() => {
@@ -144,6 +151,12 @@ export default function NewPostPage() {
           const data = await res.json();
           if (typeof data.maxTagsPerPost === "number") {
             setMaxTagsPerPost(data.maxTagsPerPost);
+          }
+          if (typeof data.allowUserPosts === "boolean") {
+            setAllowUserPosts(data.allowUserPosts);
+          }
+          if (typeof data.allowUserUploads === "boolean") {
+            setAllowUserUploads(data.allowUserUploads);
           }
         }
       } catch (err) {
@@ -488,21 +501,31 @@ export default function NewPostPage() {
                 <CardTitle>Media & Categorization</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 grid grid-cols-1 md:grid-cols-3 gap-8">
-                <div className="space-y-2">
-                  <Label htmlFor="featured-media">Featured Media</Label>
-                  <MediaUpload
-                    onMediaUploaded={handleMediaUploaded}
-                    onUploadStateChange={handleUploadStateChange}
-                    currentUploadPath={uploadPath || undefined}
-                    currentUploadFileType={uploadFileType || undefined}
-                    currentUploadMediaId={uploadMediaId || undefined}
-                    currentPreviewPath={previewPath || undefined}
-                    title={postTitle || "untitled-post"}
-                  />
-                  <p className="text-sm text-muted-foreground">
-                    Upload an image or video to be featured with your post.
-                  </p>
-                </div>
+                {/* Media upload: always shown to admins; shown to users only when allowUserUploads is on */}
+                {(user.userData?.role === "ADMIN" || allowUserUploads) ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="featured-media">Featured Media</Label>
+                    <MediaUpload
+                      onMediaUploaded={handleMediaUploaded}
+                      onUploadStateChange={handleUploadStateChange}
+                      currentUploadPath={uploadPath || undefined}
+                      currentUploadFileType={uploadFileType || undefined}
+                      currentUploadMediaId={uploadMediaId || undefined}
+                      currentPreviewPath={previewPath || undefined}
+                      title={postTitle || "untitled-post"}
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      Upload an image or video to be featured with your post.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label>Featured Media</Label>
+                    <div className="p-4 rounded-lg border border-dashed text-sm text-muted-foreground">
+                      Media uploads are not available for user submissions at this time.
+                    </div>
+                  </div>
+                )}
                 <div className="flex gap-4 flex-col col-span-2">
                   <div className="flex gap-4">
                   <div className="space-y-2">

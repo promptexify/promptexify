@@ -564,6 +564,8 @@ export const settings = pgTable(
     updatedBy: text("updatedBy").notNull(),
     postsPageSize: integer("postsPageSize").default(12).notNull(),
     featuredPostsLimit: integer("featuredPostsLimit").default(12).notNull(),
+    allowUserPosts: boolean("allowUserPosts").default(true).notNull(),
+    allowUserUploads: boolean("allowUserUploads").default(true).notNull(),
   },
   (t) => [
     index("settings_storage_type_idx").on(t.storageType),

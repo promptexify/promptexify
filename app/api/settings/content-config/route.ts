@@ -21,7 +21,11 @@ export async function GET() {
     }
 
     const [row] = await db
-      .select({ maxTagsPerPost: settings.maxTagsPerPost })
+      .select({
+        maxTagsPerPost: settings.maxTagsPerPost,
+        allowUserPosts: settings.allowUserPosts,
+        allowUserUploads: settings.allowUserUploads,
+      })
       .from(settings)
       .orderBy(desc(settings.updatedAt))
       .limit(1);
@@ -29,11 +33,13 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       maxTagsPerPost: row?.maxTagsPerPost ?? 20,
+      allowUserPosts: row?.allowUserPosts ?? true,
+      allowUserUploads: row?.allowUserUploads ?? true,
     }, { headers: SECURITY_HEADERS });
   } catch (error) {
     console.error("Error fetching content config:", error);
     return NextResponse.json(
-      { success: true, maxTagsPerPost: 20 },
+      { success: true, maxTagsPerPost: 20, allowUserPosts: true, allowUserUploads: true },
       { headers: SECURITY_HEADERS }
     );
   }

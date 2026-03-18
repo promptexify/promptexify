@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useState, useEffect } from "react";
 import {
   IconDashboard,
   IconSearch,
@@ -140,6 +141,20 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
   const isAdmin = user.userData?.role === "ADMIN";
   const isUser = user.userData?.role === "USER";
 
+  const [allowUserPosts, setAllowUserPosts] = useState(true);
+
+  useEffect(() => {
+    if (!isUser) return; // admins always see everything; no need to fetch
+    fetch("/api/settings/content-config", { credentials: "same-origin" })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data && typeof data.allowUserPosts === "boolean") {
+          setAllowUserPosts(data.allowUserPosts);
+        }
+      })
+      .catch(() => {}); // fail silently — defaults to true
+  }, [isUser]);
+
   const filteredNavMain = navigationData.navMain.filter(
     (item) => !item.adminOnly || isAdmin
   );
@@ -187,9 +202,8 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       <SidebarContent>
         <NavMain items={filteredNavMain} />
 
-        {/* Show content management section for both admins and users (filtered by permissions) */}
-        {/* Temporary disabled for users || isUser */}
-        {isAdmin && filteredContentManagement.length > 0 && (
+        {/* Show content management section for admins always; for users only when allowUserPosts is on */}
+        {(isAdmin || (isUser && allowUserPosts)) && filteredContentManagement.length > 0 && (
           <NavDocuments
             items={filteredContentManagement.map((item) => ({
               name: item.title,

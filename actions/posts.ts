@@ -16,6 +16,7 @@ import { redirect } from "next/navigation";
 import { handleAuthRedirect } from "./auth";
 import { revalidateCache, CACHE_TAGS } from "@/lib/cache";
 import { withCSRFProtection } from "@/lib/security/csp";
+import { getAllowUserPosts, getAllowUserUploads } from "@/lib/settings";
 
 import {
   sanitizeInput,
@@ -38,6 +39,26 @@ export const createPostAction = withCSRFProtection(
       // Check if user has permission to create posts (both USER and ADMIN can create)
       if (user.role !== "ADMIN" && user.role !== "USER") {
         throw new Error("Unauthorized: Only registered users can create posts");
+      }
+
+      // Enforce the kill switch for non-admin users
+      if (user.role !== "ADMIN") {
+        const [userPostsAllowed, userUploadsAllowed] = await Promise.all([
+          getAllowUserPosts(),
+          getAllowUserUploads(),
+        ]);
+        if (!userPostsAllowed) {
+          throw new Error("User submissions are currently disabled.");
+        }
+        // Strip upload fields if user uploads are disabled
+        if (!userUploadsAllowed) {
+          formData.delete("uploadPath");
+          formData.delete("uploadFileType");
+          formData.delete("uploadMediaId");
+          formData.delete("previewPath");
+          formData.delete("previewVideoPath");
+          formData.delete("blurData");
+        }
       }
 
       // Parse and validate FormData with Zod — strips File objects, coerces

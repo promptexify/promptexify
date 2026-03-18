@@ -97,6 +97,8 @@ const settingsFormSchema = z.object({
   requireApproval: z.boolean(),
   postsPageSize: z.number().min(6).max(100),
   featuredPostsLimit: z.number().min(1).max(50),
+  allowUserPosts: z.boolean(),
+  allowUserUploads: z.boolean(),
 
   // Security & Rate Limiting
   maxPostsPerDay: z.number().min(1).max(1000),
@@ -134,6 +136,8 @@ export function SettingsForm() {
       maxTagsPerPost: 20,
       enableCaptcha: false,
       requireApproval: true,
+      allowUserPosts: true,
+      allowUserUploads: true,
       maxPostsPerDay: 10,
       maxUploadsPerHour: 20,
       enableAuditLogging: true,
@@ -177,6 +181,8 @@ export function SettingsForm() {
             enableAuditLogging: settings.enableAuditLogging ?? undefined,
             postsPageSize: settings.postsPageSize ?? undefined,
             featuredPostsLimit: settings.featuredPostsLimit ?? undefined,
+            allowUserPosts: settings.allowUserPosts ?? true,
+            allowUserUploads: settings.allowUserUploads ?? true,
           });
         }
       } catch (error) {
@@ -866,6 +872,63 @@ export function SettingsForm() {
                           </FormLabel>
                           <FormDescription>
                             Require CAPTCHA verification for submissions
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <Separator />
+
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium">User Submission Controls</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Control what regular users are allowed to contribute.
+                  </p>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="allowUserPosts"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-0.5">
+                          <FormLabel className="text-base">
+                            Allow User Submissions
+                          </FormLabel>
+                          <FormDescription>
+                            Let registered users submit posts for approval. Disable to close submissions.
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="allowUserUploads"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-0.5">
+                          <FormLabel className="text-base">
+                            Allow User Media Uploads
+                          </FormLabel>
+                          <FormDescription>
+                            Let users attach images or videos to their submissions.
                           </FormDescription>
                         </div>
                         <FormControl>

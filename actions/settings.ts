@@ -9,6 +9,7 @@ import { z } from "zod";
 import { sanitizeInput } from "@/lib/security/sanitize";
 import { clearStorageConfigCache } from "@/lib/image/storage";
 import { clearUrlCache } from "@/lib/image/path";
+import { clearContentFlagsCache } from "@/lib/settings";
 
 // Settings validation schema
 const settingsSchema = z.object({
@@ -57,9 +58,13 @@ const settingsSchema = z.object({
 
   // Add postsPageSize for infinite scroll/page size
   postsPageSize: z.number().min(6).max(100),
-  
+
   // Add featuredPostsLimit for homepage featured posts
   featuredPostsLimit: z.number().min(1).max(50),
+
+  // User submission controls
+  allowUserPosts: z.boolean(),
+  allowUserUploads: z.boolean(),
 });
 
 export type SettingsFormData = z.infer<typeof settingsSchema>;
@@ -249,9 +254,10 @@ export async function updateSettingsAction(data: SettingsFormData) {
       settings = created!;
     }
 
-    // Clear all storage-related caches to ensure new settings are used
+    // Clear all caches so next request picks up the new values
     clearStorageConfigCache();
     clearUrlCache();
+    clearContentFlagsCache();
 
     // Revalidate relevant pages
     revalidatePath("/settings");
