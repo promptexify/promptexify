@@ -234,7 +234,10 @@ async function PostsManagementContent({
       categoryId,
       isPremium,
       sortBy,
-      includeUnpublished: isAdmin, // Only admins see unpublished posts
+      // Always include unpublished — for non-admins the authorId filter above
+      // already scopes results to their own posts, so pending/draft/rejected
+      // submissions are visible only to their author.
+      includeUnpublished: true,
     });
 
     // Apply client-side filters that can't be done at database level
