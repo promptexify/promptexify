@@ -307,12 +307,25 @@ export const rateLimitSchema = z.object({
 // FormData schemas for post server actions.
 // All FormData values arrive as strings; these schemas coerce them
 // to the correct types so actions never need manual string-handling.
+// Safe characters for blur placeholder data URIs (base64 + data URI prefix).
+const BLUR_DATA_PATTERN = /^data:image\/(webp|jpeg|jpg|png|gif|avif);base64,[A-Za-z0-9+/]+=*$/;
+
+// Valid path segment: absolute URL or root-relative path, no traversal.
+function isSafePath(v: string | null): boolean {
+  if (!v) return true;
+  if (v.includes("..")) return false;
+  if (v.includes("\0")) return false;
+  return true;
+}
+
 const postFormBaseSchema = z.object({
   title: z
     .string()
     .trim()
     .min(1, "Title is required")
-    .max(200, "Title must be 200 characters or less"),
+    .max(200, "Title must be 200 characters or less")
+    // Reject null bytes and control characters
+    .refine((v) => !/[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(v), "Title contains invalid characters"),
   slug: z
     .string()
     .trim()
@@ -328,7 +341,13 @@ const postFormBaseSchema = z.object({
       "Slug cannot start or end with hyphens"
     )
     .refine((v) => !v || !v.includes("--"), "Slug cannot contain consecutive hyphens"),
-  description: z.string().max(500).trim().optional().transform((v) => v || null),
+  description: z
+    .string()
+    .max(500, "Description must be 500 characters or less")
+    .trim()
+    .optional()
+    .transform((v) => v || null)
+    .refine((v) => !v || !/[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(v), "Description contains invalid characters"),
   content: z
     .string()
     .trim()
@@ -341,43 +360,54 @@ const postFormBaseSchema = z.object({
   subcategory: z
     .string()
     .optional()
-    .transform((v) => (!v || v === "none") ? null : v),
+    .transform((v) => (!v || v === "none") ? null : v)
+    .refine((v) => !v || /^[a-z0-9-]+$/.test(v), "Invalid subcategory slug"),
   tags: z
     .string()
+    .max(2000, "Tags value is too long") // guard against giant payloads before splitting
     .optional()
-    .transform((v) => (v ? v.split(",").map((t) => t.trim()).filter(Boolean) : [])),
-  // Path fields: accept absolute URLs (from cloud storage) or root-relative paths
-  // (from local storage). Path traversal sequences are rejected.
+    .transform((v) => (v ? v.split(",").map((t) => t.trim()).filter(Boolean) : []))
+    .refine((v) => v.length <= 20, "Too many tags"),
+  // Path fields: accept absolute URLs (from cloud storage) or root-relative paths.
+  // Reject path traversal, null bytes, and enforce a generous max length.
   uploadPath: z
     .string()
+    .max(2048, "uploadPath is too long")
     .optional()
     .transform((v) => v || null)
-    .refine(
-      (v) => !v || !v.includes(".."),
-      "uploadPath must not contain path traversal sequences"
-    ),
+    .refine(isSafePath, "uploadPath must not contain path traversal sequences"),
   uploadFileType: z
     .string()
     .optional()
     .transform((v) => (v === "IMAGE" || v === "VIDEO" ? v : null)),
-  uploadMediaId: z.string().optional().transform((v) => v || null),
+  // Must be a UUID if present — prevents arbitrary string injection into media table.
+  uploadMediaId: z
+    .string()
+    .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, "Invalid media ID")
+    .optional()
+    .transform((v) => v || null),
   previewPath: z
     .string()
+    .max(2048, "previewPath is too long")
     .optional()
     .transform((v) => v || null)
-    .refine(
-      (v) => !v || !v.includes(".."),
-      "previewPath must not contain path traversal sequences"
-    ),
+    .refine(isSafePath, "previewPath must not contain path traversal sequences"),
   previewVideoPath: z
     .string()
+    .max(2048, "previewVideoPath is too long")
+    .optional()
+    .transform((v) => v || null)
+    .refine(isSafePath, "previewVideoPath must not contain path traversal sequences"),
+  // blurData must be a safe base64 data URI — it is rendered directly in CSS.
+  blurData: z
+    .string()
+    .max(4096, "blurData is too long")
     .optional()
     .transform((v) => v || null)
     .refine(
-      (v) => !v || !v.includes(".."),
-      "previewVideoPath must not contain path traversal sequences"
+      (v) => !v || BLUR_DATA_PATTERN.test(v),
+      "blurData must be a valid image data URI"
     ),
-  blurData: z.string().optional().transform((v) => v || null),
   // Checkboxes send "on" when checked, absent when unchecked
   isPublished: z.string().optional().transform((v) => v === "on"),
   isPremium: z.string().optional().transform((v) => v === "on"),

@@ -564,6 +564,7 @@ export default function EditPostPage() {
                       placeholder="Enter post title..."
                       onChange={handleTitleChange}
                       required
+                      maxLength={200}
                       disabled={isSubmitting}
                     />
                   </div>
@@ -576,6 +577,9 @@ export default function EditPostPage() {
                       defaultValue={post.slug}
                       placeholder="Auto-generated from title"
                       required
+                      maxLength={200}
+                      pattern="^[a-z0-9-]*$"
+                      title="Lowercase letters, numbers, and hyphens only"
                       disabled={isSubmitting}
                     />
                   </div>
@@ -590,6 +594,7 @@ export default function EditPostPage() {
                     placeholder="Enter the prompt content here..."
                     rows={8}
                     required
+                    maxLength={50000}
                     disabled={isSubmitting}
                   />
                 </div>
@@ -601,6 +606,7 @@ export default function EditPostPage() {
                     name="description"
                     defaultValue={post.description || ""}
                     placeholder="Brief description or instructions for the prompt..."
+                    maxLength={500}
                     disabled={isSubmitting}
                   />
                 </div>

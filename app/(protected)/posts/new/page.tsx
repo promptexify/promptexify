@@ -456,6 +456,7 @@ export default function NewPostPage() {
                       value={postTitle}
                       onChange={handleTitleChange}
                       required
+                      maxLength={200}
                       disabled={isSubmitting}
                     />
                   </div>
@@ -466,6 +467,9 @@ export default function NewPostPage() {
                       id="slug"
                       name="slug"
                       placeholder="Auto-generated from title"
+                      maxLength={200}
+                      pattern="^[a-z0-9-]*$"
+                      title="Lowercase letters, numbers, and hyphens only"
                       disabled={isSubmitting}
                     />
                   </div>
@@ -480,6 +484,7 @@ export default function NewPostPage() {
                     placeholder="Enter the prompt content here..."
                     rows={8}
                     required
+                    maxLength={50000}
                     disabled={isSubmitting}
                   />
                 </div>
@@ -490,6 +495,7 @@ export default function NewPostPage() {
                     id="description"
                     name="description"
                     placeholder="Brief description or instructions for the prompt..."
+                    maxLength={500}
                     disabled={isSubmitting}
                   />
                 </div>

@@ -94,6 +94,12 @@ export const createPostAction = withCSRFProtection(
       const description = rawDescription ? sanitizeInput(rawDescription) : null;
       const content = sanitizeContent(rawContent);
 
+      // Sanitize path fields — strip any HTML/script fragments that slipped through
+      const safeUploadPath = uploadPath ? sanitizeInput(uploadPath) : null;
+      const safePreviewPath = previewPath ? sanitizeInput(previewPath) : null;
+      const safePreviewVideoPath = previewVideoPath ? sanitizeInput(previewVideoPath) : null;
+      // blurData is already validated as a strict base64 data URI by the schema; pass through as-is
+
       // Generate slug if not provided
       const baseSlug =
         rawSlug ||
@@ -169,10 +175,10 @@ export const createPostAction = withCSRFProtection(
             slug,
             description: description || null,
             content,
-            uploadPath: uploadPath || null,
+            uploadPath: safeUploadPath,
             uploadFileType: uploadFileType || null,
-            previewPath: previewPath || null,
-            previewVideoPath: previewVideoPath || null,
+            previewPath: safePreviewPath,
+            previewVideoPath: safePreviewVideoPath,
             blurData: blurData || null,
             isPremium,
             isPublished,
@@ -289,6 +295,11 @@ export const updatePostAction = withCSRFProtection(
       const title = sanitizeInput(rawTitle);
       const description = rawDescription ? sanitizeInput(rawDescription) : null;
       const content = sanitizeContent(rawContent);
+
+      // Sanitize path fields
+      const safeUploadPath = uploadPath ? sanitizeInput(uploadPath) : null;
+      const safePreviewPath = previewPath ? sanitizeInput(previewPath) : null;
+      const safePreviewVideoPath = previewVideoPath ? sanitizeInput(previewVideoPath) : null;
 
       // Generate slug if not provided and ensure uniqueness
       const baseSlug =
@@ -434,10 +445,10 @@ export const updatePostAction = withCSRFProtection(
           slug,
           description: description ?? null,
           content,
-          uploadPath: uploadPath || null,
+          uploadPath: safeUploadPath,
           uploadFileType: uploadFileType || null,
-          previewPath: previewPath || null,
-          previewVideoPath: previewVideoPath || null,
+          previewPath: safePreviewPath,
+          previewVideoPath: safePreviewVideoPath,
           blurData: blurData || null,
           isPremium,
           isPublished,
