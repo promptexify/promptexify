@@ -346,14 +346,37 @@ const postFormBaseSchema = z.object({
     .string()
     .optional()
     .transform((v) => (v ? v.split(",").map((t) => t.trim()).filter(Boolean) : [])),
-  uploadPath: z.string().optional().transform((v) => v || null),
+  // Path fields: accept absolute URLs (from cloud storage) or root-relative paths
+  // (from local storage). Path traversal sequences are rejected.
+  uploadPath: z
+    .string()
+    .optional()
+    .transform((v) => v || null)
+    .refine(
+      (v) => !v || !v.includes(".."),
+      "uploadPath must not contain path traversal sequences"
+    ),
   uploadFileType: z
     .string()
     .optional()
     .transform((v) => (v === "IMAGE" || v === "VIDEO" ? v : null)),
   uploadMediaId: z.string().optional().transform((v) => v || null),
-  previewPath: z.string().optional().transform((v) => v || null),
-  previewVideoPath: z.string().optional().transform((v) => v || null),
+  previewPath: z
+    .string()
+    .optional()
+    .transform((v) => v || null)
+    .refine(
+      (v) => !v || !v.includes(".."),
+      "previewPath must not contain path traversal sequences"
+    ),
+  previewVideoPath: z
+    .string()
+    .optional()
+    .transform((v) => v || null)
+    .refine(
+      (v) => !v || !v.includes(".."),
+      "previewVideoPath must not contain path traversal sequences"
+    ),
   blurData: z.string().optional().transform((v) => v || null),
   // Checkboxes send "on" when checked, absent when unchecked
   isPublished: z.string().optional().transform((v) => v === "on"),

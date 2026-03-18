@@ -152,7 +152,8 @@ export async function POST(request: NextRequest) {
       {
         success: false,
         error: "JSON execution failed",
-        ...(process.env.VERBOSE_ERRORS === "true" && {
+        // Never expose internal error details in production
+        ...(process.env.NODE_ENV !== "production" && process.env.VERBOSE_ERRORS === "true" && {
           details: error instanceof Error ? error.message : "Unknown error",
         }),
       },

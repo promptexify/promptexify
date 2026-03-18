@@ -98,6 +98,12 @@ export async function signInWithPassword(data: SignInData) {
     });
 
     if (error) {
+      // Log auth failure to audit log for security monitoring
+      await SecurityEvents.authenticationFailure(
+        undefined,
+        undefined,
+        error.message
+      ).catch(() => {}); // Non-blocking; don't let audit failure break auth
       return { error: error.message };
     }
 

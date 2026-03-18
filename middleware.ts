@@ -137,6 +137,8 @@ export async function middleware(request: NextRequest) {
         rateLimitResult = await rateLimits.admin(clientId);
       } else if (pathname.startsWith("/api/auth/")) {
         rateLimitResult = await rateLimits.auth(clientId);
+      } else if (pathname === "/api/csrf") {
+        rateLimitResult = await rateLimits.csrf(clientId);
       } else if (pathname.startsWith("/api/media/resolve") || pathname.startsWith("/api/media/preview/")) {
         rateLimitResult = await rateLimits.mediaResolve(clientId);
       } else {
