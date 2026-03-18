@@ -310,6 +310,17 @@ export const rateLimitSchema = z.object({
 // Safe characters for blur placeholder data URIs (base64 + data URI prefix).
 const BLUR_DATA_PATTERN = /^data:image\/(webp|jpeg|jpg|png|gif|avif);base64,[A-Za-z0-9+/]+=*$/;
 
+// Returns true if the string contains ASCII control characters that shouldn't
+// appear in user-facing text (excludes \t \n \r which are legitimate).
+function hasControlChars(v: string): boolean {
+  for (let i = 0; i < v.length; i++) {
+    const c = v.charCodeAt(i);
+    // Block C0 controls except HT(9), LF(10), CR(13)
+    if ((c <= 8) || c === 11 || c === 12 || (c >= 14 && c <= 31)) return true;
+  }
+  return false;
+}
+
 // Valid path segment: absolute URL or root-relative path, no traversal.
 function isSafePath(v: string | null): boolean {
   if (!v) return true;
@@ -324,8 +335,7 @@ const postFormBaseSchema = z.object({
     .trim()
     .min(1, "Title is required")
     .max(200, "Title must be 200 characters or less")
-    // Reject null bytes and control characters
-    .refine((v) => !/[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(v), "Title contains invalid characters"),
+    .refine((v) => !hasControlChars(v), "Title contains invalid characters"),
   slug: z
     .string()
     .trim()
@@ -347,7 +357,7 @@ const postFormBaseSchema = z.object({
     .trim()
     .optional()
     .transform((v) => v || null)
-    .refine((v) => !v || !/[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(v), "Description contains invalid characters"),
+    .refine((v) => !v || !hasControlChars(v), "Description contains invalid characters"),
   content: z
     .string()
     .trim()
