@@ -39,6 +39,16 @@ export default async function ProtectedLayout({
 
     return <>{children}</>;
   } catch (error) {
+    // NEXT_REDIRECT is thrown by redirect() — it's normal control flow, not an error.
+    if (
+      error &&
+      typeof error === "object" &&
+      "digest" in error &&
+      typeof (error as { digest?: string }).digest === "string" &&
+      (error as { digest: string }).digest.startsWith("NEXT_REDIRECT")
+    ) {
+      throw error; // re-throw so Next.js can process the redirect
+    }
     console.error('Protected layout error:', error);
     throw error;
   }

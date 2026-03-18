@@ -233,28 +233,29 @@ export async function signOut() {
 export const getCurrentUser = cache(async () => {
   const supabase = await createClient();
 
+  // Step 1: verify the session with Supabase (network call, no DB involved).
+  let user: Awaited<ReturnType<typeof supabase.auth.getUser>>["data"]["user"];
   try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) return null;
-
-    // Get additional user data from database
-    const [userData] = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, user.id))
-      .limit(1);
-
-    return {
-      ...user,
-      userData,
-    };
+    const { data } = await supabase.auth.getUser();
+    user = data.user;
   } catch (error) {
-    console.error("Get current user error:", error);
-    return null;
+    console.error("Supabase getUser error:", error);
+    return null; // Supabase auth failure → treat as unauthenticated
   }
+
+  if (!user) return null;
+
+  // Step 2: fetch the app-level user record from Postgres.
+  // A DB error here (timeout, overload) must NOT be treated as "not logged in"
+  // — we re-throw so callers can surface a proper 500 instead of redirecting
+  // an authenticated user to the sign-in page.
+  const [userData] = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, user.id))
+    .limit(1);
+
+  return { ...user, userData };
 });
 
 /**

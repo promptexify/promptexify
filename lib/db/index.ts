@@ -24,7 +24,17 @@ function createClient() {
   }
   return postgres(connectionString, {
     prepare: process.env.DATABASE_POOLER_MODE === "transaction" ? false : true,
-    max: 10,
+    // Serverless-friendly pool: keep the footprint small so we don't exhaust
+    // Supabase's connection limit when multiple function instances run in parallel.
+    max: 5,
+    // Release idle connections after 20 s so they don't accumulate across
+    // short-lived serverless invocations.
+    idle_timeout: 20,
+    // Fail fast if a connection can't be acquired within 10 s rather than
+    // queuing the request until Postgres's own statement_timeout fires.
+    connect_timeout: 10,
+    // Recycle connections every 30 min to avoid stale/broken sockets.
+    max_lifetime: 1800,
     ssl: "require",
   });
 }
