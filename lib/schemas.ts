@@ -393,9 +393,12 @@ const postFormBaseSchema = z.object({
   // Must be a UUID if present — prevents arbitrary string injection into media table.
   uploadMediaId: z
     .string()
-    .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, "Invalid media ID")
     .optional()
-    .transform((v) => v || null),
+    .transform((v) => v || null)
+    .refine(
+      (v) => !v || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v),
+      "Invalid media ID"
+    ),
   previewPath: z
     .string()
     .max(2048, "previewPath is too long")

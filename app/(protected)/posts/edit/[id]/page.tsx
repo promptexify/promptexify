@@ -578,7 +578,7 @@ export default function EditPostPage() {
                       placeholder="Auto-generated from title"
                       required
                       maxLength={200}
-                      pattern="^[a-z0-9-]*$"
+                      pattern="^[a-z0-9\-]*$"
                       title="Lowercase letters, numbers, and hyphens only"
                       disabled={isSubmitting}
                     />

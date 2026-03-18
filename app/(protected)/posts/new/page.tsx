@@ -468,7 +468,7 @@ export default function NewPostPage() {
                       name="slug"
                       placeholder="Auto-generated from title"
                       maxLength={200}
-                      pattern="^[a-z0-9-]*$"
+                      pattern="^[a-z0-9\-]*$"
                       title="Lowercase letters, numbers, and hyphens only"
                       disabled={isSubmitting}
                     />

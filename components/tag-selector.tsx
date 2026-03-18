@@ -25,12 +25,10 @@ interface TagSelectorProps {
   className?: string;
 }
 
-// Define the banned tag name patterns consistently with server-side logic
+// Define the banned tag name patterns
 const BANNED_TAG_NAME_PATTERNS = [
-  // Expanded list of reserved/brand/role names, common suspicious names, and spam/scam keywords
-  /\b(admin|test|user|null|undefined|script|root|guest|supervisor|editor|google|facebook|instagram|twitter|youtube|tiktok|linkedin|microsoft|apple|meta|openai|telegram|whatsapp|amazon|ebay|paypal|visa|mastercard|amex|discover|bank|account|security|support|official|system|developer|webmaster|noreply|daemon|anonymous|anon|temp|spam|junk|fake|bot|robot|phish|scam|fraud|malware|virus|hack|cracker|exploit|banned|blocked|restricted|error|failure|delete|remove|cancel|void|invalid|licen(s|c)e|premium|pro|vip|gold|silver|bronze|free|discount|sale|offer|deal|promo|coupon|winner|prize|lucky|congratulations|claim|collect|verify|urgent|alert|warning|important|action|required|immediately|now|click|link|download|install|update|upgrade|subscribe|unsubscribe|register|login|signup|password|otp|code|pin|secret|private|confidential|billing|invoice|payment|refund|chargeback|dispute|legal|policy|terms|conditions|agreement|copyright|trademark|patent|brand|company|corporation|inc|ltd|llc|gmbh|co|org|net|com|info|biz|site|website|forum|blog|shop|store|online|service|solution|portal|dashboard|management|control|console|panel|bitcoin|crypto|forex|invest|profit|dividend|cash|money|banker|trader|loan|credit|debt|mortgage|finance|wealth|fortune|response|reply|confirm|open|report|abuse|compromise|breach|server|client|network|database|placeholder|default|unknown|qwert|asdfg)\b/i,
-  // Offensive/bad words (expand as needed) - be cautious with this list for names
-  /\b(fuck|suck|shit|bitch|asshole|damn|cunt|dick|bastard|slut|whore|motherfucker|pussy|nigger|faggot|retard|idiot|moron|stupid|loser|wanker|chink|gook|kyke|spic|terrorist|jihad|bomb|kill|murder|rape|pedophile|porn|sex|erotic|naked| XXX | hentai|boob|ass|tits|vagina|penis)\b/i,
+  // Offensive/bad words
+  /\b(fuck|suck|shit|bitch|asshole|cunt|dick|bastard|slut|whore|motherfucker|pussy|nigger|faggot|retard|wanker|chink|gook|kyke|spic|pedophile|porn|hentai)\b/i,
   /^(.)\1{4,}$/, // 5+ repeated characters (e.g., "aaaaa")
   /^\s+$|^$|^\s*$/, // Only spaces or empty, or only whitespace
   /\s{4,}/, // 4+ consecutive spaces
