@@ -18,7 +18,7 @@ export function Footer() {
             </p>
             <div className="flex items-center space-x-2 mt-5">
               <Link
-                href="https://github.com/chhayvoinvy/promptexify"
+                href="https://github.com/promptexify/promptexify"
                 className="flex items-center justify-center h-10 w-10 border border-input rounded-md text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
                 aria-label="GitHub"
                 target="_blank"

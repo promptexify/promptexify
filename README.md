@@ -61,7 +61,7 @@ Promptexify is a community-driven prompt marketplace for vibe coders — develop
 1. **Clone the repository**
 
    ```bash
-   git clone https://github.com/chhayvoinvy/promptexify.git
+   git clone https://github.com/promptexify/promptexify.git
    cd promptexify
    ```
 
