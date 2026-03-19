@@ -23,7 +23,7 @@ function createClient() {
     throw new Error("DATABASE_URL is not set");
   }
   return postgres(connectionString, {
-    prepare: process.env.DATABASE_POOLER_MODE === "transaction" ? false : true,
+    prepare: false, // Required for Supabase transaction-mode pooler (pgbouncer)
     // Serverless-friendly pool: keep the footprint small so we don't exhaust
     // Supabase's connection limit when multiple function instances run in parallel.
     max: 5,

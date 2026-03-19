@@ -111,7 +111,6 @@ See `env.template` for the full list. Key variables:
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key |
 | `REDIS_URL` | Redis connection (optional in dev) |
-| `DATABASE_POOLER_MODE` | Set to `transaction` when using Supabase connection pooler |
 
 **No storage environment variables are required.** All storage configuration — provider, bucket, region, and credentials — is managed through the Admin Dashboard (`/dashboard/settings`). Credentials are stored encrypted in Supabase Vault. When no settings row exists yet, the app defaults to local filesystem storage.
 
