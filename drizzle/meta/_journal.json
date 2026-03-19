@@ -64,6 +64,13 @@
       "when": 1742342460000,
       "tag": "0008_logs_rls_fix",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1742342520000,
+      "tag": "0009_fix_rls_always_true",
+      "breakpoints": true
     }
   ]
 }

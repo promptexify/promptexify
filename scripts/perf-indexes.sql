@@ -5,12 +5,38 @@
 -- Safe to re-run (all statements use IF NOT EXISTS / OR REPLACE).
 
 -- ---------------------------------------------------------------------------
+-- 0. Move extensions out of the public schema (Supabase security advisory)
+-- ---------------------------------------------------------------------------
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_extension e
+    JOIN pg_namespace n ON e.extnamespace = n.oid
+    WHERE e.extname = 'pg_trgm' AND n.nspname = 'public'
+  ) THEN
+    ALTER EXTENSION pg_trgm SET SCHEMA extensions;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM pg_extension e
+    JOIN pg_namespace n ON e.extnamespace = n.oid
+    WHERE e.extname = 'btree_gin' AND n.nspname = 'public'
+  ) THEN
+    ALTER EXTENSION btree_gin SET SCHEMA extensions;
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------------
 -- 1. search_vector trigger
 -- Keeps posts.search_vector in sync with title + description.
 -- ---------------------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION posts_search_vector_update()
-RETURNS trigger LANGUAGE plpgsql AS $$
+RETURNS trigger LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public, extensions
+AS $$
 BEGIN
   NEW.search_vector :=
     setweight(to_tsvector('english', coalesce(NEW.title, '')), 'A') ||
