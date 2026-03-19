@@ -18,13 +18,8 @@ export const signUpSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").optional(),
 });
 
-// Bookmark schemas
-export const bookmarkSchema = z.object({
-  postId: z.string().uuid("Invalid post ID"),
-});
-
-// Favorite schemas
-export const favoriteSchema = z.object({
+// Star (save) schemas
+export const starSchema = z.object({
   postId: z.string().uuid("Invalid post ID"),
 });
 
@@ -438,8 +433,7 @@ export type UpdatePostFormData = z.infer<typeof updatePostFormSchema>;
 export type MagicLinkData = z.infer<typeof magicLinkSchema>;
 export type SignInData = z.infer<typeof signInSchema>;
 export type SignUpData = z.infer<typeof signUpSchema>;
-export type BookmarkData = z.infer<typeof bookmarkSchema>;
-export type FavoriteData = z.infer<typeof favoriteSchema>;
+export type StarData = z.infer<typeof starSchema>;
 export type CreatePostData = z.infer<typeof createPostSchema>;
 export type UpdatePostData = z.infer<typeof updatePostSchema>;
 export type CreateTagData = z.infer<typeof createTagSchema>;

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { posts, bookmarks, favorites } from "@/lib/db/schema";
+import { posts, stars } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { SECURITY_HEADERS } from "@/lib/security/sanitize";
 
@@ -20,16 +20,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const userId = currentUser?.userData?.id;
 
     if (!userId) {
-      // Return default state for anonymous users
       return NextResponse.json(
-        {
-          isBookmarked: false,
-          isFavorited: false,
-        },
-        {
-          status: 200,
-          headers: SECURITY_HEADERS,
-        }
+        { isStarred: false },
+        { status: 200, headers: SECURITY_HEADERS }
       );
     }
 
@@ -46,22 +39,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const [bookmark] = await db
+    const [star] = await db
       .select()
-      .from(bookmarks)
-      .where(and(eq(bookmarks.userId, userId), eq(bookmarks.postId, id)))
-      .limit(1);
-    const [favorite] = await db
-      .select()
-      .from(favorites)
-      .where(and(eq(favorites.userId, userId), eq(favorites.postId, id)))
+      .from(stars)
+      .where(and(eq(stars.userId, userId), eq(stars.postId, id)))
       .limit(1);
 
     return NextResponse.json(
-      {
-        isBookmarked: !!bookmark,
-        isFavorited: !!favorite,
-      },
+      { isStarred: !!star },
       {
         status: 200,
         headers: {

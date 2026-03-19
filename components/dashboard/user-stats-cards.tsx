@@ -1,4 +1,4 @@
-import { Calendar, Heart, Bookmark } from "@/components/ui/icons";
+import { Calendar, IconStar } from "@/components/ui/icons";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -12,10 +12,9 @@ import { format } from "date-fns";
 import Link from "next/link";
 
 interface UserStatsCardsProps {
-  totalBookmarks: number;
-  totalFavorites: number;
+  totalStars: number;
   joinedDate: Date;
-  recentFavorites: Array<{
+  recentStars: Array<{
     id: string;
     createdAt: Date;
     post: {
@@ -45,44 +44,23 @@ interface UserStatsCardsProps {
 }
 
 export function UserStatsCards({
-  totalBookmarks,
-  totalFavorites,
+  totalStars,
   joinedDate,
-  recentFavorites,
+  recentStars,
 }: UserStatsCardsProps) {
   return (
     <div className="space-y-6">
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {/* Total Bookmarks Card */}
+        {/* Total Stars Card */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total Bookmarks
-            </CardTitle>
-            <Bookmark className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Total Stars</CardTitle>
+            <IconStar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalBookmarks}</div>
-            <p className="text-xs text-muted-foreground">
-              Posts saved for later
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Total Favorites Card */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total Favorites
-            </CardTitle>
-            <Heart className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalFavorites}</div>
-            <p className="text-xs text-muted-foreground">
-              Posts you&apos;ve liked
-            </p>
+            <div className="text-2xl font-bold">{totalStars}</div>
+            <p className="text-xs text-muted-foreground">Posts saved for later</p>
           </CardContent>
         </Card>
 
@@ -103,67 +81,58 @@ export function UserStatsCards({
         </Card>
       </div>
 
-      {/* Recent Favorites Section */}
-      {recentFavorites.length > 0 && (
+      {/* Recent Stars Section */}
+      {recentStars.length > 0 && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-lg">Recent Favorites</CardTitle>
-                <CardDescription>
-                  Your most recently liked posts
-                </CardDescription>
+                <CardTitle className="text-lg">Recent Stars</CardTitle>
+                <CardDescription>Your most recently starred posts</CardDescription>
               </div>
-              <Link
-                href="/favorites"
-                className="text-sm text-primary hover:underline"
-              >
+              <Link href="/stars" className="text-sm text-primary hover:underline">
                 View all
               </Link>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {recentFavorites.map((favorite) => (
+            {recentStars.map((star) => (
               <div
-                key={favorite.id}
+                key={star.id}
                 className="flex items-start space-x-4 rounded-lg border p-4"
               >
-                <Heart className="h-5 w-5 text-white mt-0.5 flex-shrink-0" />
+                <IconStar className="h-5 w-5 text-yellow-500 mt-0.5 flex-shrink-0" />
                 <div className="flex-1 space-y-2">
                   <div>
                     <Link
-                      href={`/entry/${favorite.post.id}`}
+                      href={`/entry/${star.post.id}`}
                       className="font-medium text-foreground hover:text-primary transition-colors"
                     >
-                      {favorite.post.title}
+                      {star.post.title}
                     </Link>
-                    {favorite.post.description && (
+                    {star.post.description && (
                       <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                        {favorite.post.description}
+                        {star.post.description}
                       </p>
                     )}
                   </div>
                   <div className="flex items-center space-x-2 text-xs text-muted-foreground">
                     <Badge variant="secondary" className="text-xs">
-                      {favorite.post.category.name}
+                      {star.post.category.name}
                     </Badge>
-                    {favorite.post.tags?.slice(0, 2).map((tag) => (
-                      <Badge
-                        key={tag.slug}
-                        variant="outline"
-                        className="text-xs"
-                      >
+                    {star.post.tags?.slice(0, 2).map((tag) => (
+                      <Badge key={tag.slug} variant="outline" className="text-xs">
                         {tag.name}
                       </Badge>
                     ))}
-                    {(favorite.post.tags?.length ?? 0) > 2 && (
+                    {(star.post.tags?.length ?? 0) > 2 && (
                       <span className="text-xs">
-                        +{(favorite.post.tags?.length ?? 0) - 2} more
+                        +{(star.post.tags?.length ?? 0) - 2} more
                       </span>
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Liked {format(new Date(favorite.createdAt), "MMM d, yyyy")}
+                    Starred {format(new Date(star.createdAt), "MMM d, yyyy")}
                   </p>
                 </div>
               </div>
@@ -171,28 +140,28 @@ export function UserStatsCards({
           </CardContent>
           <CardFooter>
             <Link
-              href="/favorites"
+              href="/stars"
               className="w-full text-center text-sm text-muted-foreground hover:text-primary transition-colors"
             >
-              View all your favorite posts →
+              View all your starred posts →
             </Link>
           </CardFooter>
         </Card>
       )}
 
-      {/* Empty State for Favorites */}
-      {recentFavorites.length === 0 && (
+      {/* Empty State for Stars */}
+      {recentStars.length === 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Recent Favorites</CardTitle>
+            <CardTitle className="text-lg">Recent Stars</CardTitle>
             <CardDescription>
-              Your most recently liked posts will appear here
+              Your most recently starred posts will appear here
             </CardDescription>
           </CardHeader>
           <CardContent className="text-center py-8">
-            <Heart className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <IconStar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <p className="text-muted-foreground mb-4">
-              You haven&apos;t liked any posts yet
+              You haven&apos;t starred any posts yet
             </p>
             <Link
               href="/"

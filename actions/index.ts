@@ -7,22 +7,14 @@ export {
   magicLinkAction,
   oauthAction,
   signOutAction,
-  handleAuthRedirect,
 } from "./auth";
 
-// Bookmark actions
+// Star (save) actions
 export {
-  toggleBookmarkAction,
-  getUserBookmarksAction,
-  checkBookmarkStatusAction,
-} from "./bookmarks";
-
-// Favorite actions
-export {
-  toggleFavoriteAction,
-  getUserFavoritesAction,
-  checkFavoriteStatusAction,
-} from "./favorites";
+  toggleStarAction,
+  getUserStarsAction,
+  checkStarStatusAction,
+} from "./stars";
 
 // Post management actions
 export {
@@ -53,7 +45,6 @@ export {
   updateUserProfileAction,
   getUserProfileAction,
   getUserDashboardStatsAction,
-  getUserFavoritesCountAction,
   getAdminDashboardStatsAction,
   getAllUsersActivityAction,
   toggleUserDisabledAction,

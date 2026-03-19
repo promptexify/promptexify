@@ -15,8 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Copy, Check, Share } from "@/components/ui/icons";
 import { PostWithInteractions } from "@/lib/content";
-import { BookmarkButton } from "@/components/bookmark-button";
-import { FavoriteButton } from "@/components/favorite-button";
+import { StarButton } from "@/components/star-button";
 interface PostModalProps {
   post: PostWithInteractions;
   userType?: "FREE" | "PREMIUM" | null;
@@ -41,22 +40,12 @@ function PostContentModal({
   const [showAllTags, setShowAllTags] = useState(false);
 
 
-  // Use bookmark/favorite status directly from post data
-  // (merged into /api/posts/[id] response — no separate /status call needed)
-  const [bookmarkStatus, setBookmarkStatus] = useState({
-    isBookmarked: post.isBookmarked ?? false,
-    isFavorited: post.isFavorited ?? false,
-    isLoading: false,
-  });
+  const [isStarred, setIsStarred] = useState(post.isStarred ?? false);
 
-  // Keep status in sync if post prop updates (e.g., after toggle actions)
   useEffect(() => {
-    setBookmarkStatus({
-      isBookmarked: post.isBookmarked ?? false,
-      isFavorited: post.isFavorited ?? false,
-      isLoading: false,
-    });
-  }, [post.isBookmarked, post.isFavorited]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsStarred(post.isStarred ?? false);
+  }, [post.isStarred]);
 
   const copyToClipboard = async () => {
     const contentToCopy =
@@ -205,36 +194,30 @@ function PostContentModal({
           {/* Prompt Content - Scrollable Container */}
           <div className="flex-1 min-h-0 flex flex-col">
             <div className="bg-muted/30 rounded-lg border flex-1 flex flex-col min-h-0">
-              <div className="flex items-center justify-end px-6 py-4 rounded-t-lg shrink-0">
+              <div className="flex items-center justify-between px-6 py-4 rounded-t-lg shrink-0">
+                <Button
+                  onClick={copyToClipboard}
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-2 cursor-pointer"
+                  disabled={!post.content}
+                >
+                  {isCopied ? (
+                    <>
+                      <Check className="h-3 w-3" />
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-3 w-3" />
+                      Copy
+                    </>
+                  )}
+                </Button>
                 <div className="flex items-center gap-2">
-                  <Button
-                    onClick={copyToClipboard}
-                    variant="outline"
-                    size="sm"
-                    className="flex items-center gap-2 cursor-pointer"
-                    disabled={!post.content}
-                  >
-                    {isCopied ? (
-                      <>
-                        <Check className="h-3 w-3" />
-                        Copied
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="h-3 w-3" />
-                        Copy
-                      </>
-                    )}
-                  </Button>
-                  <FavoriteButton
+                  <StarButton
                     postId={post.id}
-                    initialFavorited={bookmarkStatus.isFavorited}
-                    variant="outline"
-                    size="sm"
-                  />
-                  <BookmarkButton
-                    postId={post.id}
-                    initialBookmarked={bookmarkStatus.isBookmarked}
+                    initialStarred={isStarred}
                     variant="outline"
                     size="sm"
                   />
@@ -256,8 +239,7 @@ function PostContentModal({
               <DialogDescription className="text-xs text-muted-foreground pr-30">
                 Added by {post.author.name}
                 <br />
-                Add this {post.category.name.toLowerCase()} prompt to bookmark
-                for later use.
+                Star this {post.category.name.toLowerCase()} prompt to save it for later.
               </DialogDescription>
             </div>
             {/* Share Buttons */}

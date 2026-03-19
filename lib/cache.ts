@@ -13,8 +13,7 @@ export const CACHE_TAGS = {
   USER_POSTS: "user-posts",
   RELATED_POSTS: "related-posts",
   SEARCH_RESULTS: "search-results",
-  USER_BOOKMARKS: "user-bookmarks",
-  USER_FAVORITES: "user-favorites",
+  USER_STARS: "user-stars",
   POPULAR_POSTS: "popular-posts",
   ANALYTICS: "analytics",
 } as const;
@@ -377,7 +376,7 @@ export async function revalidateCache(tags: string | string[]) {
 
   // Next.js cache invalidation
   tagArray.forEach((tag) => {
-    revalidateTag(tag);
+    revalidateTag(tag, 'max');
   });
 }
 
@@ -388,7 +387,7 @@ export async function clearAllCaches() {
   try {
     await cacheStore.clear();
     // Revalidate all Next.js cache tags
-    Object.values(CACHE_TAGS).forEach((tag) => revalidateTag(tag));
+    Object.values(CACHE_TAGS).forEach((tag) => revalidateTag(tag, 'max'));
   } catch (error) {
     console.warn("Cache clearing error:", error);
   }

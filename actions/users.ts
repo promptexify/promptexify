@@ -3,8 +3,7 @@
 import { db } from "@/lib/db";
 import {
   users,
-  bookmarks,
-  favorites,
+  stars,
   posts,
   categories,
   tags,
@@ -13,7 +12,7 @@ import { eq, and, desc, gte, lt, sql, inArray, aliasedTable } from "drizzle-orm"
 import { requireAuth, getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { handleAuthRedirect } from "./auth";
+import { redirect } from "next/navigation";
 import { withCSRFProtection, handleSecureActionError } from "@/lib/security/csp";
 import { updateUserProfileSchema } from "@/lib/schemas";
 import { sanitizeInput } from "@/lib/security/sanitize";
@@ -201,38 +200,33 @@ export async function getUserProfileAction() {
 
 /**
  * Get user dashboard statistics
- * Returns total bookmarks, joined date, and recent favorite posts
+ * Returns total stars, joined date, and recent starred posts
  */
 export async function getUserDashboardStatsAction() {
   try {
-    // Get the current user with authentication check
     const currentUser = await getCurrentUser();
     if (!currentUser?.userData) {
-      handleAuthRedirect();
+      redirect("/signin");
     }
     const user = currentUser.userData;
 
-    const [bookmarkCountResult, favRows] = await Promise.all([
+    const [starCountResult, recentStarRows] = await Promise.all([
       db
         .select({ count: sql<number>`count(*)::int` })
-        .from(bookmarks)
-        .where(eq(bookmarks.userId, user.id)),
+        .from(stars)
+        .where(eq(stars.userId, user.id)),
       db
-        .select({
-          id: favorites.id,
-          postId: favorites.postId,
-          createdAt: favorites.createdAt,
-        })
-        .from(favorites)
-        .where(eq(favorites.userId, user.id))
-        .orderBy(desc(favorites.createdAt))
+        .select({ id: stars.id, postId: stars.postId, createdAt: stars.createdAt })
+        .from(stars)
+        .where(eq(stars.userId, user.id))
+        .orderBy(desc(stars.createdAt))
         .limit(5),
     ]);
-    const totalBookmarks = bookmarkCountResult[0]?.count ?? 0;
+    const totalStars = starCountResult[0]?.count ?? 0;
 
-    // Batch-fetch post details for recent favorites instead of N+1 getById calls
-    const favPostIds = favRows.map((r) => r.postId);
-    let recentFavorites: {
+    // Batch-fetch post details for recent stars
+    const starPostIds = recentStarRows.map((r) => r.postId);
+    let recentStars: {
       id: string;
       createdAt: Date;
       post: {
@@ -244,7 +238,7 @@ export async function getUserDashboardStatsAction() {
         category: { id: string; name: string; slug: string; parent: { id: string; name: string; slug: string } | null };
       };
     }[] = [];
-    if (favPostIds.length > 0) {
+    if (starPostIds.length > 0) {
       const parentCategory = aliasedTable(categories, "parent_category");
       const postRows = await db
         .select({
@@ -267,16 +261,16 @@ export async function getUserDashboardStatsAction() {
         .leftJoin(users, eq(posts.authorId, users.id))
         .leftJoin(categories, eq(posts.categoryId, categories.id))
         .leftJoin(parentCategory, eq(categories.parentId, parentCategory.id))
-        .where(inArray(posts.id, favPostIds));
+        .where(inArray(posts.id, starPostIds));
 
       const postMap = new Map(postRows.map((r) => [r.postId, r]));
-      recentFavorites = favRows
-        .map((fav) => {
-          const r = postMap.get(fav.postId);
+      recentStars = recentStarRows
+        .map((s) => {
+          const r = postMap.get(s.postId);
           if (!r) return null;
           return {
-            id: fav.id,
-            createdAt: fav.createdAt,
+            id: s.id,
+            createdAt: s.createdAt,
             post: {
               id: r.postId,
               title: r.postTitle,
@@ -305,9 +299,9 @@ export async function getUserDashboardStatsAction() {
     return {
       success: true,
       data: {
-        totalBookmarks,
+        totalStars,
         joinedDate: user.createdAt,
-        recentFavorites,
+        recentStars,
         userInfo: {
           name: user.name,
           email: user.email,
@@ -318,63 +312,16 @@ export async function getUserDashboardStatsAction() {
       },
     };
   } catch (error) {
-    // Handle authentication redirects
     if (error && typeof error === "object" && "digest" in error) {
       const errorDigest = (error as { digest?: string }).digest;
-      if (
-        typeof errorDigest === "string" &&
-        errorDigest.includes("NEXT_REDIRECT")
-      ) {
+      if (typeof errorDigest === "string" && errorDigest.includes("NEXT_REDIRECT")) {
         throw error;
       }
     }
-
     console.error("Error fetching user dashboard stats:", error);
     return {
       success: false,
       error: "Failed to fetch user dashboard statistics",
-    };
-  }
-}
-
-/**
- * Get total favorite posts count for user
- */
-export async function getUserFavoritesCountAction() {
-  try {
-    // Get the current user with authentication check
-    const currentUser = await getCurrentUser();
-    if (!currentUser?.userData) {
-      handleAuthRedirect();
-    }
-    const user = currentUser.userData;
-
-    const [favCountRow] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(favorites)
-      .where(eq(favorites.userId, user.id));
-    const totalFavorites = favCountRow?.count ?? 0;
-
-    return {
-      success: true,
-      totalFavorites,
-    };
-  } catch (error) {
-    // Handle authentication redirects
-    if (error && typeof error === "object" && "digest" in error) {
-      const errorDigest = (error as { digest?: string }).digest;
-      if (
-        typeof errorDigest === "string" &&
-        errorDigest.includes("NEXT_REDIRECT")
-      ) {
-        throw error;
-      }
-    }
-
-    console.error("Error fetching user favorites count:", error);
-    return {
-      success: false,
-      error: "Failed to fetch favorites count",
     };
   }
 }
@@ -422,30 +369,24 @@ export async function getAllUsersActivityAction() {
       .from(users)
       .orderBy(desc(users.createdAt));
     const userIds = userRows.map((u) => u.id);
-    const [postCounts, bookmarkCounts, favoriteCounts] = await Promise.all([
+    const [postCounts, starCounts] = await Promise.all([
       db
         .select({ authorId: posts.authorId, count: sql<number>`count(*)::int` })
         .from(posts)
         .where(eq(posts.isPublished, true))
         .groupBy(posts.authorId),
       db
-        .select({ userId: bookmarks.userId, count: sql<number>`count(*)::int` })
-        .from(bookmarks)
-        .groupBy(bookmarks.userId),
-      db
-        .select({ userId: favorites.userId, count: sql<number>`count(*)::int` })
-        .from(favorites)
-        .groupBy(favorites.userId),
+        .select({ userId: stars.userId, count: sql<number>`count(*)::int` })
+        .from(stars)
+        .groupBy(stars.userId),
     ]);
     const postsByUser = new Map(postCounts.map((r) => [r.authorId, r.count ?? 0]));
-    const bookmarksByUser = new Map(bookmarkCounts.map((r) => [r.userId, r.count ?? 0]));
-    const favoritesByUser = new Map(favoriteCounts.map((r) => [r.userId, r.count ?? 0]));
+    const starsByUser = new Map(starCounts.map((r) => [r.userId, r.count ?? 0]));
     const usersWithCounts = userRows.map((u) => ({
       ...u,
       _count: {
         posts: postsByUser.get(u.id) ?? 0,
-        bookmarks: bookmarksByUser.get(u.id) ?? 0,
-        favorites: favoritesByUser.get(u.id) ?? 0,
+        stars: starsByUser.get(u.id) ?? 0,
       },
     }));
 
@@ -483,8 +424,7 @@ export async function getAllUsersActivityAction() {
       registeredOn: user.createdAt,
       posts: user._count.posts,
       lastLogin: user.lastSignInAt ? new Date(user.lastSignInAt) : null,
-      bookmarks: user._count.bookmarks,
-      favorites: user._count.favorites,
+      stars: user._count.stars,
     }));
 
     return {
@@ -529,8 +469,7 @@ export async function getAdminDashboardStatsAction() {
       userStats,
       catStats,
       tagStats,
-      bookmarkCountRow,
-      favCountRow,
+      starCountRow,
       categoryCountRows,
       recentRows,
     ] = await Promise.all([
@@ -562,8 +501,7 @@ export async function getAdminDashboardStatsAction() {
           prevMonth: sql<number>`count(*) FILTER (WHERE ${tags.createdAt} >= ${t60}::timestamptz AND ${tags.createdAt} < ${t30}::timestamptz)::int`,
         })
         .from(tags),
-      db.select({ count: sql<number>`count(*)::int` }).from(bookmarks),
-      db.select({ count: sql<number>`count(*)::int` }).from(favorites),
+      db.select({ count: sql<number>`count(*)::int` }).from(stars),
       db
         .select({
           id: categories.id,
@@ -604,8 +542,7 @@ export async function getAdminDashboardStatsAction() {
     const categoriesGrowth = calculateGrowthPercentage(cs.thisMonth, cs.prevMonth);
     const tagsGrowth = calculateGrowthPercentage(ts.thisMonth, ts.prevMonth);
 
-    const totalBookmarks = bookmarkCountRow[0]?.count ?? 0;
-    const totalFavorites = favCountRow[0]?.count ?? 0;
+    const totalStars = starCountRow[0]?.count ?? 0;
     const popularCategories = categoryCountRows.map((r) => ({
       id: r.id,
       name: r.name,
@@ -644,8 +581,7 @@ export async function getAdminDashboardStatsAction() {
         },
 
         engagement: {
-          totalBookmarks,
-          totalFavorites,
+          totalStars,
         },
         popularCategories,
         recentActivity,

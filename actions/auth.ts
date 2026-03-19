@@ -13,15 +13,9 @@ import {
   type SignUpData,
   type MagicLinkData,
 } from "@/lib/schemas";
-import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { withCSRFProtection, handleSecureActionError } from "@/lib/security/csp";
 import { rateLimits } from "@/lib/security/limits";
-
-// Helper function to handle authentication redirects properly
-function handleAuthRedirect(): never {
-  redirect("/signin");
-}
 
 /** Extract client IP from server action request headers */
 async function getActionClientIP(): Promise<string> {
@@ -162,5 +156,3 @@ export async function signOutAction() {
   }
 }
 
-// Re-export helper function for use in other action files
-export { handleAuthRedirect };

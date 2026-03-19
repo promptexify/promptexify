@@ -260,7 +260,6 @@ export function sanitizeContent(content: string): string {
   let sanitized = content
     .trim()
     // Remove null bytes and control characters
-    // eslint-disable-next-line no-control-regex
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "")
     // Limit extremely long content
     .substring(0, 100000);
@@ -316,7 +315,6 @@ export function sanitizeTagName(tagName: string): string {
     tagName
       .trim()
       // Remove null bytes and control characters
-      // eslint-disable-next-line no-control-regex
       .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "")
       // Only allow alphanumeric, spaces, hyphens, and underscores
       .replace(/[^a-zA-Z0-9\s\-_]/g, "")
@@ -341,7 +339,6 @@ export function sanitizeTagSlug(input: string): string {
     .trim()
     .toLowerCase()
     // Remove null bytes and control characters
-    // eslint-disable-next-line no-control-regex
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "")
     // Replace spaces and underscores with hyphens
     .replace(/[\s_]+/g, "-")
@@ -402,7 +399,6 @@ export function sanitizeRichContent(content: string): string {
   let sanitized = content
     .trim()
     // Remove null bytes and control characters
-    // eslint-disable-next-line no-control-regex
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "")
     // Limit content length
     .substring(0, 50000);
@@ -462,7 +458,6 @@ export async function sanitizeSearchQuery(
   const { userId, ip, logSuspicious = true } = options || {};
 
   // Strip null bytes and control characters first
-  // eslint-disable-next-line no-control-regex
   let sanitized = query.trim().replace(/[\x00-\x1F]/g, "");
 
   // Run DOMPurify BEFORE any character removal to prevent bypass sequences
@@ -605,7 +600,6 @@ export function sanitizeBasicHtml(content: string): string {
   let sanitized = content
     .trim()
     // Remove null bytes and control characters
-    // eslint-disable-next-line no-control-regex
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "")
     // Limit content length
     .substring(0, 10000);

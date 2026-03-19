@@ -1,8 +1,7 @@
 import {
   IconTrendingDown,
   IconTrendingUp,
-  IconBookmark,
-  IconHeart,
+  IconStar,
   IconCategory,
 } from "@/components/ui/icons";
 
@@ -39,8 +38,7 @@ interface DashboardStats {
     growthPercentage: number;
   };
   engagement: {
-    totalBookmarks: number;
-    totalFavorites: number;
+    totalStars: number;
   };
   popularCategories: Array<{
     id: string;
@@ -130,7 +128,7 @@ export function SectionCards({
       {/* Post Cards */}
       <Card className="@container/card">
         <CardHeader>
-          <CardDescription>Total Images</CardDescription>
+          <CardDescription>Total Posts</CardDescription>
           <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
             {formatNumber(dashboardStats.posts.total)}
           </CardTitle>
@@ -272,38 +270,20 @@ export function EngagementCards({
 
   return (
     <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs @xl/main:grid-cols-2">
-      {/* Total Bookmarks Card */}
+      {/* Total Stars Card */}
       <Card className="@container/card">
         <CardHeader>
           <CardDescription className="flex items-center gap-2">
-            <IconBookmark className="h-4 w-4" />
-            Total Bookmarks
+            <IconStar className="h-4 w-4" />
+            Total Stars
           </CardDescription>
           <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            {formatNumber(dashboardStats.engagement.totalBookmarks)}
+            {formatNumber(dashboardStats.engagement.totalStars)}
           </CardTitle>
         </CardHeader>
         <CardFooter className="flex-col items-start gap-1.5 text-sm">
           <div className="line-clamp-1 flex gap-2 font-medium text-muted-foreground">
-            Images saved by users for later
-          </div>
-        </CardFooter>
-      </Card>
-
-      {/* Total Favorites Card */}
-      <Card className="@container/card">
-        <CardHeader>
-          <CardDescription className="flex items-center gap-2">
-            <IconHeart className="h-4 w-4" />
-            Total Favorites
-          </CardDescription>
-          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            {formatNumber(dashboardStats.engagement.totalFavorites)}
-          </CardTitle>
-        </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div className="line-clamp-1 flex gap-2 font-medium text-muted-foreground">
-            Images favorited by users
+            Posts starred by users
           </div>
         </CardFooter>
       </Card>

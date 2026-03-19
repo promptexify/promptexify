@@ -60,6 +60,7 @@ export function useMediaDisplay(
 
   useEffect(() => {
     if (!previewPath) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDisplayUrl("");
       setIsLoading(false);
       setError("No preview path available");

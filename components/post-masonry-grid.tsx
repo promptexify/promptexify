@@ -3,9 +3,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { PostWithInteractions } from "@/lib/content";
-import { BookmarkButton } from "@/components/bookmark-button";
-import { FavoriteButton } from "@/components/favorite-button";
+import { StarButton } from "@/components/star-button";
 import { MediaImage, MediaVideo } from "@/components/media-display";
 import {
   Play,
@@ -303,6 +303,7 @@ export function PostMasonryGrid({ posts, ...rest }: PostMasonryGridProps) {
       calculateLayout();
     };
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     calculateLayout();
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
@@ -324,6 +325,7 @@ export function PostMasonryGrid({ posts, ...rest }: PostMasonryGridProps) {
 
     // If this is the initial load, show all posts immediately
     if (previousPostCount === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPreviousPostCount(posts.length);
     } else {
       // If posts were added, animate them
@@ -550,46 +552,31 @@ export function PostMasonryGrid({ posts, ...rest }: PostMasonryGridProps) {
                     )}
 
                     {/* Action buttons overlay */}
-                    <div className="absolute bottom-3 right-3 px-3 flex gap-2 items-end justify-between z-20">
+                    <div className="absolute bottom-3 left-3 right-3 flex gap-2 items-end justify-between z-20">
+                      {/* Tags — bottom left */}
+                      <div className="flex items-center gap-1 flex-wrap">
+                        {post.tags.slice(0, 2).map((tag) => (
+                          <Badge
+                            key={tag.id}
+                            variant="outline"
+                            className="text-xs bg-background/80 backdrop-blur-sm border-black/20 dark:border-white/20"
+                          >
+                            {tag.name}
+                          </Badge>
+                        ))}
+                      </div>
+                      {/* Star button — bottom right */}
                       <div
-                        className="flex items-bottom justify-end gap-2"
                         onClick={(e) => e.stopPropagation()}
                         onTouchStart={(e) => e.stopPropagation()}
                         onTouchEnd={(e) => e.stopPropagation()}
                       >
-                        <FavoriteButton
+                        <StarButton
                           postId={post.id}
                           className="border-1 border-black/20 dark:border-white/20 backdrop-blur-lg bg-background"
-                          initialFavorited={post.isFavorited || false}
-                        />
-                        <BookmarkButton
-                          postId={post.id}
-                          className="border-1 border-black/20 dark:border-white/20 backdrop-blur-lg bg-background"
-                          initialBookmarked={post.isBookmarked || false}
+                          initialStarred={post.isStarred || false}
                         />
                       </div>
-                      {/* <div className="flex items-end justify-end gap-1 flex-col flex-wrap">
-                        <div className="flex items-center gap-1">
-                          <Badge
-                            variant="outline"
-                            className="text-xs bg-background"
-                          >
-                            {post.category.parent?.name || post.category.name}
-                          </Badge>
-                        </div>
-                        <div className="flex items-end gap-1">
-                          {post.tags &&
-                            post.tags.slice(0, 2).map((tag) => (
-                              <Badge
-                                key={tag.id}
-                                variant="outline"
-                                className="text-xs bg-background"
-                              >
-                                {tag.name}
-                              </Badge>
-                            ))}
-                        </div>
-                      </div> */}
                     </div>
                   </div>
                 </Card>
@@ -598,20 +585,12 @@ export function PostMasonryGrid({ posts, ...rest }: PostMasonryGridProps) {
               {/* Content overlay positioned outside the Card */}
               <div className="z-10 mx-3 border border-t-0 rounded-b-lg border-black/20 dark:border-white/20">
                 <div className="bg-background-muted backdrop-blur-sm rounded-b-lg px-4 py-2 text-xs text-muted-foreground">
-                  <span className="line-clamp-2">
-
-                    {(() => {
-                      const text = post.description || post.content || post.title;
-                      if (!text) return "No description available";
-                      const cleaned = text
-                        .replace(/^# .+\n\n/, "")
-                        .replace(/\n+/g, " ")
-                        .trim();
-                      return cleaned.length > 100
-                        ? cleaned.substring(0, 100) + "..."
-                        : cleaned;
-                    })()}
-                  </span>
+                  <div className="flex items-center justify-between gap-2">
+                    <Badge variant="secondary" className="text-xs shrink-0">
+                      {post.category.parent?.name || post.category.name}
+                    </Badge>
+                    <span className="truncate text-right">{post.author.name || "Unknown"}</span>
+                  </div>
                 </div>
               </div>
             </div>

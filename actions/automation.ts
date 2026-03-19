@@ -1,8 +1,8 @@
 "use server";
 
 import { getCurrentUser } from "@/lib/auth";
-import { handleAuthRedirect } from "./auth";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { SecurityMonitor, SecurityEventType } from "@/lib/security/monitor";
 import { db } from "@/lib/db";
 import { logs } from "@/lib/db/schema";
@@ -25,7 +25,7 @@ async function requireAdminAccess(action: string) {
       { action, reason: "no_user_data" },
       "medium"
     );
-    handleAuthRedirect();
+    redirect("/signin");
   }
 
   if (currentUser.userData.role !== "ADMIN") {

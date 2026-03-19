@@ -10,7 +10,7 @@ import {
   sanitizeUserAgent,
 } from "@/lib/edge";
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   try {
     // Generate nonce for CSP - simplified logic
     const isDevelopment = process.env.NODE_ENV === 'development';
@@ -84,8 +84,8 @@ export async function middleware(request: NextRequest) {
           );
         }
 
-        // Read CSRF cookie directly from the request object — more reliable
-        // in Edge Middleware than `cookies()` from `next/headers`.
+        // Read CSRF cookie directly from the request object — available here
+        // before server action context, unlike `cookies()` from `next/headers`.
         const csrfCookieName = CSRFProtection.getCookieName();
         const csrfCookieToken =
           request.cookies.get(csrfCookieName)?.value ||
@@ -214,7 +214,7 @@ export const config = {
      * Match all request paths except for the ones starting with:
      * - api (API routes) - but we want to process these for CSRF
      * - _next/static (static files)
-     * - _next/image (image optimization files)  
+     * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * Update: Include API routes for CSRF protection and rate limiting
      */

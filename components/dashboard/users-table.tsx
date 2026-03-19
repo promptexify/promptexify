@@ -86,8 +86,7 @@ export const userActivitySchema = z.object({
   registeredOn: z.date(),
   posts: z.number(),
   lastLogin: z.date().nullable(),
-  bookmarks: z.number(),
-  favorites: z.number(),
+  stars: z.number(),
 });
 
 type UserActivity = z.infer<typeof userActivitySchema>;

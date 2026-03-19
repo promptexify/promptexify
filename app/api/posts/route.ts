@@ -16,7 +16,7 @@ function simpleSanitizeQuery(query: string): string {
   return query
     .trim()
     // Remove null bytes and control characters
-    // eslint-disable-next-line no-control-regex
+     
     .replace(/[\x00-\x1F]/g, "")
     // Remove SQL injection patterns
     .replace(/[';\\"`]/g, "")

@@ -263,6 +263,7 @@ export function MediaImage({
 
   useEffect(() => {
     if (!src) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsLoading(false);
       return;
     }
@@ -544,17 +545,23 @@ export const MediaVideo = React.forwardRef<HTMLVideoElement, MediaVideoProps>(
       // Priority order: previewVideoSrc → src (only if src is not empty)
       if (usePreviewVideo && previewVideoSrc) {
         console.log(`✅ Using preview video: ${previewVideoSrc}`);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setCurrentVideoSrc(previewVideoSrc);
+         
         setIsUsingPreview(true);
       } else if (src && src.trim() !== "") {
         console.log(
           `❌ Using original video: ${src} (usePreviewVideo: ${usePreviewVideo}, hasPreviewVideo: ${!!previewVideoSrc})`
         );
+         
         setCurrentVideoSrc(src);
+         
         setIsUsingPreview(false);
       } else {
         console.log(`❌ No video source available`);
+         
         setCurrentVideoSrc("");
+         
         setIsUsingPreview(false);
       }
     }, [src, previewVideoSrc, usePreviewVideo]);
@@ -565,6 +572,7 @@ export const MediaVideo = React.forwardRef<HTMLVideoElement, MediaVideoProps>(
 
       if (!currentVideoSrc) {
         console.log(`No currentVideoSrc, setting loading to false`);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setIsLoading(false);
         return;
       }

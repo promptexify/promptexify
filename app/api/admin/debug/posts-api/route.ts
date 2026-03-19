@@ -69,8 +69,7 @@ export async function GET(request: NextRequest) {
           id: result.data[0].id,
           title: result.data[0].title,
           hasInteractions: {
-            bookmarked: result.data[0].isBookmarked,
-            favorited: result.data[0].isFavorited,
+            starred: result.data[0].isStarred,
           },
         } : null,
       };

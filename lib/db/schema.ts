@@ -20,8 +20,16 @@ import {
   index,
   pgPolicy,
   primaryKey,
+  customType,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
+
+// Custom type for PostgreSQL tsvector (full-text search)
+const tsvectorType = customType<{ data: string }>({
+  dataType() {
+    return "tsvector";
+  },
+});
 import { sql } from "drizzle-orm";
 import { relations } from "drizzle-orm";
 import { authenticatedRole } from "drizzle-orm/supabase";
@@ -183,6 +191,7 @@ export const tags = pgTable(
   },
   (t) => [
     index("tags_created_at_desc_idx").on(t.createdAt),
+    index("tags_name_trgm_idx").using("gin", t.name.op("gin_trgm_ops")),
     pgPolicy("tags_select_all", {
       as: "permissive",
       for: "select",
@@ -236,34 +245,27 @@ export const posts = pgTable(
     uploadPath: text("uploadPath"),
     previewPath: text("previewPath"),
     previewVideoPath: text("previewVideoPath"),
+    // Stored tsvector for GIN-indexed full-text search (maintained by trigger in perf-indexes.sql)
+    searchVector: tsvectorType("search_vector"),
   },
   (t) => [
+    // Core list/filter indexes
     index("posts_is_published_created_at_idx").on(t.isPublished, t.createdAt),
-    index("posts_category_published_created_idx").on(
-      t.categoryId,
-      t.isPublished,
-      t.createdAt
-    ),
+    index("posts_category_published_created_idx").on(t.categoryId, t.isPublished, t.createdAt),
     index("posts_author_created_at_idx").on(t.authorId, t.createdAt),
     index("posts_is_premium_is_published_idx").on(t.isPremium, t.isPublished),
     index("posts_is_featured_is_published_idx").on(t.isFeatured, t.isPublished),
     index("posts_status_created_at_idx").on(t.status, t.createdAt),
-    index("posts_published_premium_created_idx").on(
-      t.isPublished,
-      t.isPremium,
-      t.createdAt
-    ),
-    index("posts_author_status_idx").on(t.authorId, t.status),
-    index("posts_author_published_status_idx").on(
-      t.authorId,
-      t.isPublished,
-      t.status
-    ),
-    index("posts_author_status_created_idx").on(
-      t.authorId,
-      t.status,
-      t.createdAt
-    ),
+    // Author-scoped indexes (posts_author_published_status_idx supersedes the old posts_author_status_idx)
+    index("posts_author_published_status_idx").on(t.authorId, t.isPublished, t.status),
+    index("posts_author_status_created_idx").on(t.authorId, t.status, t.createdAt),
+    // Partial index: covers the most common "published posts by recency" scan path
+    index("posts_published_created_partial_idx").on(t.createdAt).where(sql`"isPublished" = true`),
+    // GIN index on stored tsvector for fast full-text search (requires pg_trgm + trigger from perf-indexes.sql)
+    index("posts_search_vector_gin_idx").using("gin", t.searchVector),
+    // Trigram indexes for ILIKE-based partial matching (require pg_trgm extension)
+    index("posts_title_trgm_idx").using("gin", t.title.op("gin_trgm_ops")),
+    index("posts_description_trgm_idx").using("gin", t.description.op("gin_trgm_ops")),
     pgPolicy("posts_select_published_or_own_or_admin", {
       as: "permissive",
       for: "select",
@@ -309,6 +311,8 @@ export const postToTag = pgTable(
   (t) => [
     primaryKey({ columns: [t.A, t.B] }),
     index("postToTag_a_idx").on(t.A),
+    // Index on B (tag side) — enables fast "which posts have tag X?" lookups
+    index("postToTag_b_idx").on(t.B),
     pgPolicy("_PostToTag_select_all", {
       as: "permissive",
       for: "select",
@@ -339,10 +343,10 @@ export const postToTag = pgTable(
 ).enableRLS();
 
 // -----------------------------------------------------------------------------
-// Bookmarks (user sees only own rows)
+// Stars / saved posts (was "bookmarks" — table name kept as-is in DB)
 // -----------------------------------------------------------------------------
 
-export const bookmarks = pgTable(
+export const stars = pgTable(
   "bookmarks",
   {
     id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
@@ -355,77 +359,25 @@ export const bookmarks = pgTable(
     index("bookmarks_user_created_at_idx").on(t.userId, t.createdAt),
     index("bookmarks_post_id_idx").on(t.postId),
     pgPolicy("bookmarks_select_own", {
-      as: "permissive",
-      for: "select",
-      to: "public",
+      as: "permissive", for: "select", to: "public",
       using: sql`"userId" = ${authUid}`,
     }),
     pgPolicy("bookmarks_insert_own", {
-      as: "permissive",
-      for: "insert",
-      to: "public",
+      as: "permissive", for: "insert", to: "public",
       withCheck: sql`"userId" = ${authUid}`,
     }),
     pgPolicy("bookmarks_update_own", {
-      as: "permissive",
-      for: "update",
-      to: "public",
+      as: "permissive", for: "update", to: "public",
       using: sql`"userId" = ${authUid}`,
       withCheck: sql`"userId" = ${authUid}`,
     }),
     pgPolicy("bookmarks_delete_own", {
-      as: "permissive",
-      for: "delete",
-      to: "public",
+      as: "permissive", for: "delete", to: "public",
       using: sql`"userId" = ${authUid}`,
     }),
   ]
 ).enableRLS();
 
-// -----------------------------------------------------------------------------
-// Favorites (user sees only own rows)
-// -----------------------------------------------------------------------------
-
-export const favorites = pgTable(
-  "favorites",
-  {
-    id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
-    userId: text("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
-    postId: text("postId").notNull().references(() => posts.id, { onDelete: "cascade" }),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-  },
-  (t) => [
-    uniqueIndex("favorites_user_id_post_id_key").on(t.userId, t.postId),
-    index("favorites_user_created_at_idx").on(t.userId, t.createdAt),
-    index("favorites_post_id_idx").on(t.postId),
-    index("favorites_post_created_at_idx").on(t.postId, t.createdAt),
-    pgPolicy("favorites_select_own", {
-      as: "permissive",
-      for: "select",
-      to: "public",
-      using: sql`"userId" = ${authUid}`,
-    }),
-    pgPolicy("favorites_insert_own", {
-      as: "permissive",
-      for: "insert",
-      to: "public",
-      withCheck: sql`"userId" = ${authUid}`,
-    }),
-    pgPolicy("favorites_update_own", {
-      as: "permissive",
-      for: "update",
-      to: "public",
-      using: sql`"userId" = ${authUid}`,
-      withCheck: sql`"userId" = ${authUid}`,
-    }),
-    pgPolicy("favorites_delete_own", {
-      as: "permissive",
-      for: "delete",
-      to: "public",
-      using: sql`"userId" = ${authUid}`,
-    }),
-  ]
-).enableRLS();
 
 // -----------------------------------------------------------------------------
 // Logs (admin read; authenticated can insert for audit trail)
@@ -605,8 +557,7 @@ export const settings = pgTable(
 // -----------------------------------------------------------------------------
 
 export const usersRelations = relations(users, ({ many }) => ({
-  bookmarks: many(bookmarks),
-  favorites: many(favorites),
+  stars: many(stars),
   posts: many(posts),
 }));
 
@@ -633,20 +584,14 @@ export const postsRelations = relations(posts, ({ one, many }) => ({
     fields: [posts.categoryId],
     references: [categories.id],
   }),
-  bookmarks: many(bookmarks),
-  favorites: many(favorites),
+  stars: many(stars),
   media: many(media),
   postToTag: many(postToTag),
 }));
 
-export const bookmarksRelations = relations(bookmarks, ({ one }) => ({
-  post: one(posts, { fields: [bookmarks.postId], references: [posts.id] }),
-  user: one(users, { fields: [bookmarks.userId], references: [users.id] }),
-}));
-
-export const favoritesRelations = relations(favorites, ({ one }) => ({
-  post: one(posts, { fields: [favorites.postId], references: [posts.id] }),
-  user: one(users, { fields: [favorites.userId], references: [users.id] }),
+export const starsRelations = relations(stars, ({ one }) => ({
+  post: one(posts, { fields: [stars.postId], references: [posts.id] }),
+  user: one(users, { fields: [stars.userId], references: [users.id] }),
 }));
 
 export const mediaRelations = relations(media, ({ one }) => ({

@@ -129,10 +129,12 @@ export function TagSelector({
   // Check if we can add a new pending tag
   const canAddPendingTag = useMemo(() => {
     const searchTrimmed = searchQuery.trim();
+    // Skip per-tag validation for bulk (comma-separated) input — handled in processBulkTagInput
+    const isBulkInput = searchTrimmed.includes(",");
     return (
       searchTrimmed &&
       searchTrimmed.length > 0 &&
-      isValidTagName(searchTrimmed) && // This now includes the pattern check
+      (isBulkInput || isValidTagName(searchTrimmed)) &&
       !exactMatch &&
       !pendingMatch &&
       !selectedTags.some(
@@ -435,7 +437,7 @@ export function TagSelector({
               const value = e.target.value;
               // Allow commas for bulk input, plus valid characters for tag names
               if (value === "" || /^[a-zA-Z0-9\s\-_,]*$/.test(value)) {
-                setSearchQuery(value.substring(0, 200)); // Increased limit for bulk input
+                setSearchQuery(value.substring(0, 1000)); // Allow large bulk input pastes
                 // Validate on change to provide immediate feedback
                 if (value.trim()) {
                   // If input contains commas, don't validate until Enter is pressed

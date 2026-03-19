@@ -42,8 +42,19 @@ async function main() {
 
   console.log("=== Database Deployment ===\n");
 
-  // Step 1: Apply RLS helper functions
-  console.log("[1/2] Applying RLS helper functions...");
+  // Step 1: Run migrations (drizzle-orm tracks applied migrations automatically)
+  console.log("[1/3] Running migrations...");
+  try {
+    await migrate(db, { migrationsFolder: join(__dirname, "..", "drizzle") });
+    console.log("  ✓ Done\n");
+  } catch (error) {
+    console.error("  ✗ Migrations failed:", error);
+    await client.end();
+    process.exit(1);
+  }
+
+  // Step 2: Apply RLS helper functions (requires tables to exist)
+  console.log("[2/3] Applying RLS helper functions...");
   try {
     const rlsSql = readFileSync(join(__dirname, "rls-functions.sql"), "utf-8");
     await client.unsafe(rlsSql);
@@ -54,13 +65,14 @@ async function main() {
     process.exit(1);
   }
 
-  // Step 2: Run migrations (drizzle-orm tracks applied migrations automatically)
-  console.log("[2/2] Running migrations...");
+  // Step 3: Apply performance indexes (extensions, trigger, backfill — all idempotent)
+  console.log("[3/3] Applying performance indexes...");
   try {
-    await migrate(db, { migrationsFolder: join(__dirname, "..", "drizzle") });
+    const perfSql = readFileSync(join(__dirname, "perf-indexes.sql"), "utf-8");
+    await client.unsafe(perfSql);
     console.log("  ✓ Done\n");
   } catch (error) {
-    console.error("  ✗ Migrations failed:", error);
+    console.error("  ✗ Failed to apply performance indexes:", error);
     await client.end();
     process.exit(1);
   }

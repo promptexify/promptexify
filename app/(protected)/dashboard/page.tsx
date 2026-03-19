@@ -1,6 +1,5 @@
 import { AppSidebar } from "@/components/dashboard/admin-sidebar";
 // import { ChartAreaInteractive } from "@/components/dashboard/user-chart";
-import { DataTable } from "@/components/dashboard/data-table";
 import {
   SectionCards,
   // EngagementCards,
@@ -14,14 +13,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { requireAuth } from "@/lib/auth";
 import {
   getUserDashboardStatsAction,
-  getUserFavoritesCountAction,
   getAdminDashboardStatsAction,
 } from "@/actions/users";
 import { Shield, BarChart3 } from "@/components/ui/icons";
 import { setMetadata } from "@/config/seo";
 
-// Enable caching for better performance
-export const revalidate = 120; // Revalidate every 2 minutes for dashboard stats
 
 export const metadata = setMetadata({
   title: "Dashboard",
@@ -36,16 +32,9 @@ export default async function DashboardPage() {
   // If user is a regular USER, show user dashboard
   if (user.userData?.role === "USER") {
     // Fetch user dashboard statistics
-    const [dashboardStats, favoritesCount] = await Promise.all([
-      getUserDashboardStatsAction(),
-      getUserFavoritesCountAction(),
-    ]);
+    const dashboardStats = await getUserDashboardStatsAction();
 
-    if (
-      !dashboardStats.success ||
-      !favoritesCount.success ||
-      !dashboardStats.data
-    ) {
+    if (!dashboardStats.success || !dashboardStats.data) {
       // Handle error gracefully
       return (
         <SidebarProvider
@@ -99,10 +88,9 @@ export default async function DashboardPage() {
 
                 {/* User Statistics */}
                 <UserStatsCards
-                  totalBookmarks={dashboardStats.data.totalBookmarks}
-                  totalFavorites={favoritesCount.totalFavorites || 0}
+                  totalStars={dashboardStats.data.totalStars}
                   joinedDate={dashboardStats.data.joinedDate}
-                  recentFavorites={dashboardStats.data.recentFavorites}
+                  recentStars={dashboardStats.data.recentStars}
                 />
               </div>
             </div>
@@ -176,25 +164,19 @@ export default async function DashboardPage() {
 
                   <TabsContent value="overview" className="space-y-3">
                     {/* Main Dashboard Statistics Cards */}
-                    <SectionCards
-                      dashboardStats={
-                        adminDashboardStats.success
-                          ? adminDashboardStats.data
-                          : undefined
-                      }
-                      isLoading={!adminDashboardStats.success}
-                    />
-
-                    {/* Show error message if stats failed to load */}
-                    {!adminDashboardStats.success && (
+                    {adminDashboardStats.success ? (
+                      <SectionCards
+                        dashboardStats={adminDashboardStats.data}
+                        isLoading={false}
+                      />
+                    ) : (
                       <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4">
                         <p className="text-sm text-destructive">
                           <strong>Error loading dashboard statistics:</strong>{" "}
                           {adminDashboardStats.error}
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          Dashboard cards are showing loading state. Please
-                          refresh the page to try again.
+                          Please refresh the page to try again.
                         </p>
                       </div>
                     )}
@@ -224,7 +206,6 @@ export default async function DashboardPage() {
                     </div> */}
 
                     {/* <ChartAreaInteractive /> */}
-                    <DataTable />
                   </TabsContent>
 
                   <TabsContent value="security" className="space-y-6">

@@ -13,6 +13,7 @@ export function GoogleAnalytics({ gaId }: GoogleAnalyticsProps) {
   useEffect(() => {
     // Get nonce from window global (set by layout)
     const cspNonce = (window as { __CSP_NONCE__?: string }).__CSP_NONCE__;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setNonce(cspNonce || null);
   }, []);
 

@@ -1,15 +1,14 @@
 /**
- * Edge Runtime Compatible Security & Rate Limiting Module
+ * Middleware Security & Rate Limiting Module
  *
- * This module provides essential security and rate limiting functionality that works
- * seamlessly in Next.js Edge Runtime environments. It's designed as a lightweight
- * alternative to the full-featured modules that require Node.js APIs.
+ * This module provides security and rate limiting functionality used by the
+ * Next.js middleware (Node.js proxy mode). It is a lightweight alternative to
+ * the full-featured modules that require database or Redis access.
  *
  *  PURPOSE:
- * - Provide Edge Runtime compatible rate limiting (in-memory only)
+ * - Provide in-process rate limiting (in-memory, no Redis dependency)
  * - Enable security event logging without database dependencies
- * - Support middleware functionality in Edge Runtime contexts
- * - Maintain security features while avoiding Node.js API usage
+ * - Support middleware functionality without heavy server-side imports
  *
  *  WHAT'S INCLUDED:
  *
@@ -26,10 +25,10 @@
  * • SecurityEvents - Pre-defined security event helpers
  * • Client IP and User-Agent sanitization utilities
  *
- *  RUNTIME COMPATIBILITY:
- * • Works in Next.js Edge Runtime (middleware, edge API routes)
- * • No Node.js dependencies (no Redis, Drizzle, or file system access)
- * • Memory-only storage (automatic cleanup to prevent leaks)
+ *  RUNTIME NOTES:
+ * • Runs in the Next.js Node.js proxy process (not Edge Runtime)
+ * • In-memory state is shared across all requests within a single process
+ * • For multi-instance deployments, use Redis-backed rate limiting instead
  * • Console-based logging (structured JSON for external processing)
  *
  *  FALLBACK STRATEGY:
@@ -39,7 +38,7 @@
  * • lib/monitor.ts (Complex monitoring) → lib/edge.ts (basic logging)
  *
  *  USAGE:
- * Import this module in middleware and edge-compatible contexts:
+ * Import this module in middleware and lightweight server contexts:
  * import { rateLimits, SecurityEvents, getClientIP } from '@/lib/edge';
  */
 

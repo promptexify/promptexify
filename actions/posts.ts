@@ -13,7 +13,6 @@ import { eq, and, inArray, isNull } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { handleAuthRedirect } from "./auth";
 import { revalidateCache, CACHE_TAGS } from "@/lib/cache";
 import { withCSRFProtection } from "@/lib/security/csp";
 import { getAllowUserPosts, getAllowUserUploads } from "@/lib/settings";
@@ -32,7 +31,7 @@ export const createPostAction = withCSRFProtection(
       // Get the current user
       const currentUser = await getCurrentUser();
       if (!currentUser?.userData) {
-        handleAuthRedirect();
+        redirect("/signin");
       }
       const user = currentUser.userData;
 
@@ -260,7 +259,7 @@ export const updatePostAction = withCSRFProtection(
       // Get the current user
       const currentUser = await getCurrentUser();
       if (!currentUser?.userData) {
-        handleAuthRedirect();
+        redirect("/signin");
       }
       const user = currentUser.userData;
 
@@ -520,7 +519,7 @@ export async function approvePostAction(postId: string) {
     // Get the current user
     const currentUser = await getCurrentUser();
     if (!currentUser?.userData) {
-      handleAuthRedirect();
+      redirect("/signin");
     }
 
     // Check admin permission
@@ -586,7 +585,7 @@ export async function rejectPostAction(postId: string) {
     // Ensure we have an authenticated user
     const currentUser = await getCurrentUser();
     if (!currentUser?.userData) {
-      handleAuthRedirect();
+      redirect("/signin");
     }
 
     // Only admins can reject posts
@@ -649,7 +648,7 @@ export async function deletePostAction(postId: string) {
   try {
     const currentUser = await getCurrentUser();
     if (!currentUser?.userData) {
-      handleAuthRedirect();
+      redirect("/signin");
     }
 
     const user = currentUser.userData;
@@ -832,7 +831,7 @@ export async function togglePostPublishAction(postId: string) {
   try {
     const currentUser = await getCurrentUser();
     if (!currentUser?.userData) {
-      handleAuthRedirect();
+      redirect("/signin");
     }
 
     // Only admins can publish/unpublish posts
@@ -897,7 +896,7 @@ export async function togglePostFeaturedAction(postId: string) {
   try {
     const currentUser = await getCurrentUser();
     if (!currentUser?.userData) {
-      handleAuthRedirect();
+      redirect("/signin");
     }
 
     if (currentUser.userData.role !== "ADMIN") {
@@ -958,7 +957,7 @@ export async function cleanupOrphanedMediaAction(dryRun: boolean = true) {
   try {
     const currentUser = await getCurrentUser();
     if (!currentUser?.userData) {
-      handleAuthRedirect();
+      redirect("/signin");
     }
 
     // Only admins can run cleanup
@@ -1009,7 +1008,7 @@ export async function cleanupOrphanedPreviewFilesAction(dryRun: boolean = true) 
   try {
     const currentUser = await getCurrentUser();
     if (!currentUser?.userData) {
-      handleAuthRedirect();
+      redirect("/signin");
     }
 
     // Only admins can run cleanup

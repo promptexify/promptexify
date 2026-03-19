@@ -24,8 +24,7 @@ import {
 } from "@/components/ui/icons";
 
 import { PostWithInteractions } from "@/lib/content";
-import { BookmarkButton } from "@/components/bookmark-button";
-import { FavoriteButton } from "@/components/favorite-button";
+import { StarButton } from "@/components/star-button";
 
 interface PostStandalonePageProps {
   post: PostWithInteractions;
@@ -307,21 +306,17 @@ export function PostStandalonePage({
                     ) : (
                       <>
                         <Copy className="h-4 w-4" />
-                        Copy Prompt
+                        Copy
                       </>
                     )}
                   </Button>
 
-                  <FavoriteButton
+                  <StarButton
                     postId={post.id}
-                    initialFavorited={post.isFavorited}
+                    initialStarred={post.isStarred}
                     variant="outline"
-                  />
-
-                  <BookmarkButton
-                    postId={post.id}
-                    initialBookmarked={post.isBookmarked}
-                    variant="outline"
+                    size="default"
+                    showLabel
                   />
 
                   {/* Toggle Preview Button */}

@@ -10,8 +10,7 @@ import {
   categories,
   tags,
   postToTag,
-  bookmarks,
-  favorites,
+  stars,
   media,
 } from "@/lib/db/schema";
 import {
@@ -93,7 +92,7 @@ export interface PostListResult {
   author: PostListAuthor;
   category: PostListCategory;
   tags: PostListTag[];
-  _count: { bookmarks: number; favorites: number };
+  _count: { stars: number };
 }
 
 export interface PostFullResult extends PostListResult {
@@ -101,14 +100,12 @@ export interface PostFullResult extends PostListResult {
   media: PostListMedia[];
 }
 
-export interface PostWithInteractions extends Omit<PostListResult, "bookmarks" | "favorites"> {
-  isBookmarked?: boolean;
-  isFavorited?: boolean;
+export interface PostWithInteractions extends PostListResult {
+  isStarred?: boolean;
 }
 
-export interface PostFullWithInteractions extends Omit<PostFullResult, "bookmarks" | "favorites"> {
-  isBookmarked?: boolean;
-  isFavorited?: boolean;
+export interface PostFullWithInteractions extends PostFullResult {
+  isStarred?: boolean;
 }
 
 export interface PaginationParams {
@@ -206,29 +203,16 @@ async function getMediaForPostIds(
   return map;
 }
 
-async function getBookmarkAndFavoriteCounts(
-  postIds: string[]
-): Promise<{ bookmarks: Map<string, number>; favorites: Map<string, number> }> {
-  if (postIds.length === 0) {
-    return { bookmarks: new Map(), favorites: new Map() };
-  }
-  const [bookmarkRows, favoriteRows] = await Promise.all([
-    db
-      .select({ postId: bookmarks.postId, count: sql<number>`count(*)::int` })
-      .from(bookmarks)
-      .where(inArray(bookmarks.postId, postIds))
-      .groupBy(bookmarks.postId),
-    db
-      .select({ postId: favorites.postId, count: sql<number>`count(*)::int` })
-      .from(favorites)
-      .where(inArray(favorites.postId, postIds))
-      .groupBy(favorites.postId),
-  ]);
-  const bookmarksMap = new Map<string, number>();
-  const favoritesMap = new Map<string, number>();
-  for (const r of bookmarkRows) bookmarksMap.set(r.postId, r.count);
-  for (const r of favoriteRows) favoritesMap.set(r.postId, r.count);
-  return { bookmarks: bookmarksMap, favorites: favoritesMap };
+async function getStarCounts(postIds: string[]): Promise<Map<string, number>> {
+  if (postIds.length === 0) return new Map();
+  const rows = await db
+    .select({ postId: stars.postId, count: sql<number>`count(*)::int` })
+    .from(stars)
+    .where(inArray(stars.postId, postIds))
+    .groupBy(stars.postId);
+  const map = new Map<string, number>();
+  for (const r of rows) map.set(r.postId, r.count);
+  return map;
 }
 
 // Alias for parent category join (same table twice)
@@ -267,20 +251,20 @@ export class PostQueries {
     }
     const whereClause = and(...conditions);
 
-    // Aggregated favorites subquery — avoids correlated subquery per row for popular/trending sorts
-    const favCounts = db
-      .select({ postId: favorites.postId, cnt: sql<number>`count(*)::int`.as("cnt") })
-      .from(favorites)
-      .groupBy(favorites.postId)
-      .as("fav_counts");
+    // Aggregated stars subquery — avoids correlated subquery per row for popular/trending sorts
+    const starCounts = db
+      .select({ postId: stars.postId, cnt: sql<number>`count(*)::int`.as("cnt") })
+      .from(stars)
+      .groupBy(stars.postId)
+      .as("star_counts");
 
     const endTimer = DatabaseMetrics.startQuery();
     try {
       const orderByClause =
         sortBy === "popular"
-          ? [desc(sql`coalesce(${favCounts.cnt}, 0)`), desc(posts.createdAt)]
+          ? [desc(sql`coalesce(${starCounts.cnt}, 0)`), desc(posts.createdAt)]
           : sortBy === "trending"
-            ? [desc(sql`coalesce(${favCounts.cnt}, 0)`), desc(posts.createdAt)]
+            ? [desc(sql`coalesce(${starCounts.cnt}, 0)`), desc(posts.createdAt)]
             : [desc(posts.createdAt)];
 
       const [rows, countResult] = await Promise.all([
@@ -302,7 +286,7 @@ export class PostQueries {
           .leftJoin(users, eq(posts.authorId, users.id))
           .leftJoin(categories, eq(posts.categoryId, categories.id))
           .leftJoin(parentCategory, eq(categories.parentId, parentCategory.id))
-          .leftJoin(favCounts, eq(posts.id, favCounts.postId))
+          .leftJoin(starCounts, eq(posts.id, starCounts.postId))
           .where(whereClause)
           .orderBy(...orderByClause)
           .limit(limit)
@@ -320,18 +304,13 @@ export class PostQueries {
       const [tagsMap, mediaMap, counts] = await Promise.all([
         getTagsForPostIds(postIds),
         getMediaForPostIds(postIds, true),
-        getBookmarkAndFavoriteCounts(postIds),
+        getStarCounts(postIds),
       ]);
 
-      let bookmarkSet: Set<string> = new Set();
-      let favoriteSet: Set<string> = new Set();
+      let starSet: Set<string> = new Set();
       if (userId && postIds.length > 0) {
-        const [userBookmarks, userFavorites] = await Promise.all([
-          db.select({ postId: bookmarks.postId }).from(bookmarks).where(and(eq(bookmarks.userId, userId), inArray(bookmarks.postId, postIds))),
-          db.select({ postId: favorites.postId }).from(favorites).where(and(eq(favorites.userId, userId), inArray(favorites.postId, postIds))),
-        ]);
-        bookmarkSet = new Set(userBookmarks.map((b) => b.postId));
-        favoriteSet = new Set(userFavorites.map((f) => f.postId));
+        const userStars = await db.select({ postId: stars.postId }).from(stars).where(and(eq(stars.userId, userId), inArray(stars.postId, postIds)));
+        starSet = new Set(userStars.map((s) => s.postId));
       }
 
       const data: PostWithInteractions[] = rows.map((r) => {
@@ -369,12 +348,8 @@ export class PostQueries {
               : null,
           },
           tags: tagsMap.get(p.id) ?? [],
-          _count: {
-            bookmarks: counts.bookmarks.get(p.id) ?? 0,
-            favorites: counts.favorites.get(p.id) ?? 0,
-          },
-          isBookmarked: userId ? bookmarkSet.has(p.id) : false,
-          isFavorited: userId ? favoriteSet.has(p.id) : false,
+          _count: { stars: counts.get(p.id) ?? 0 },
+          isStarred: userId ? starSet.has(p.id) : false,
         };
       });
 
@@ -436,33 +411,46 @@ export class PostQueries {
             .join(" & ")
         : null;
 
-    const tsvectorExpr = sql`to_tsvector('english', coalesce(${posts.title}, '') || ' ' || coalesce(${posts.description}, ''))`;
-
-    // Full-text search condition using tsquery (when we have valid terms)
+    // Use stored search_vector column (GIN-indexed) instead of computing tsvector on every row
     const fullTextCondition = tsQueryString
-      ? sql`${tsvectorExpr} @@ to_tsquery('english', ${tsQueryString})`
+      ? sql`${posts.searchVector} @@ to_tsquery('english', ${tsQueryString})`
       : null;
 
-    // Relevance rank expression for ordering
+    // Relevance rank using stored vector — avoids redundant tsvector computation at query time
     const rankExpr = tsQueryString
-      ? sql<number>`ts_rank(${tsvectorExpr}, to_tsquery('english', ${tsQueryString}))`
+      ? sql<number>`ts_rank(${posts.searchVector}, to_tsquery('english', ${tsQueryString}))`
       : sql<number>`0`;
 
+    // Pre-fetch tag IDs matching the search terms — eliminates correlated subquery per row
+    let matchingTagIds: string[] = [];
+    if (searchTerms.length > 0) {
+      const tagRows = await db
+        .select({ id: tags.id })
+        .from(tags)
+        .where(or(...searchTerms.map((term) => ilike(tags.name, `%${term}%`))));
+      matchingTagIds = tagRows.map((r) => r.id);
+    }
+
     // ilike fallback conditions for broader matching (short queries, special chars, etc.)
-    const ilikeConditions = searchTerms.map((term) =>
-      or(
+    const ilikeConditions = searchTerms.map((term) => {
+      const conds: SQL[] = [
         ilike(posts.title, `%${term}%`),
         ilike(posts.description, `%${term}%`),
-        exists(
-          db
-            .select()
-            .from(postToTag)
-            .innerJoin(tags, eq(postToTag.B, tags.id))
-            .where(and(eq(postToTag.A, posts.id), ilike(tags.name, `%${term}%`)))
-        ),
-        ilike(categories.name, `%${term}%`)
-      )
-    );
+      ];
+      // Use pre-fetched tag IDs with simple inArray (no correlated join per row)
+      if (matchingTagIds.length > 0) {
+        conds.push(
+          exists(
+            db
+              .select()
+              .from(postToTag)
+              .where(and(eq(postToTag.A, posts.id), inArray(postToTag.B, matchingTagIds)))
+          )
+        );
+      }
+      conds.push(ilike(categories.name, `%${term}%`));
+      return or(...conds);
+    });
 
     // Combine: full-text OR (all ilike terms must match)
     const combinedSearch = fullTextCondition
@@ -481,21 +469,21 @@ export class PostQueries {
       whereClause = and(searchWhere, or(eq(posts.categoryId, categoryId), inArray(posts.categoryId, subIds)));
     }
 
-    // Aggregated favorites subquery — avoids correlated subquery per row for popular/trending sorts
-    const favCounts = db
-      .select({ postId: favorites.postId, cnt: sql<number>`count(*)::int`.as("cnt") })
-      .from(favorites)
-      .groupBy(favorites.postId)
-      .as("fav_counts");
+    // Aggregated stars subquery — avoids correlated subquery per row for popular/trending sorts
+    const starCounts = db
+      .select({ postId: stars.postId, cnt: sql<number>`count(*)::int`.as("cnt") })
+      .from(stars)
+      .groupBy(stars.postId)
+      .as("star_counts");
 
     // Determine ordering based on sortBy
     const orderByClause =
       sortBy === "latest"
         ? [desc(posts.createdAt)]
         : sortBy === "popular"
-          ? [desc(sql`coalesce(${favCounts.cnt}, 0)`), desc(posts.createdAt)]
+          ? [desc(sql`coalesce(${starCounts.cnt}, 0)`), desc(posts.createdAt)]
           : sortBy === "trending"
-            ? [desc(sql`coalesce(${favCounts.cnt}, 0)`), desc(posts.createdAt)]
+            ? [desc(sql`coalesce(${starCounts.cnt}, 0)`), desc(posts.createdAt)]
             : [desc(rankExpr), desc(posts.createdAt)]; // "relevance" (default)
 
     const endTimer = DatabaseMetrics.startQuery();
@@ -519,7 +507,7 @@ export class PostQueries {
           .leftJoin(users, eq(posts.authorId, users.id))
           .leftJoin(categories, eq(posts.categoryId, categories.id))
           .leftJoin(parentCategory, eq(categories.parentId, parentCategory.id))
-          .leftJoin(favCounts, eq(posts.id, favCounts.postId))
+          .leftJoin(starCounts, eq(posts.id, starCounts.postId))
           .where(whereClause)
           .orderBy(...orderByClause)
           .limit(limit)
@@ -537,18 +525,13 @@ export class PostQueries {
       const [tagsMap, mediaMap, counts] = await Promise.all([
         getTagsForPostIds(postIds),
         getMediaForPostIds(postIds, true),
-        getBookmarkAndFavoriteCounts(postIds),
+        getStarCounts(postIds),
       ]);
 
-      let bookmarkSet = new Set<string>();
-      let favoriteSet = new Set<string>();
+      let starSet = new Set<string>();
       if (userId && postIds.length > 0) {
-        const [userBookmarks, userFavorites] = await Promise.all([
-          db.select({ postId: bookmarks.postId }).from(bookmarks).where(and(eq(bookmarks.userId, userId), inArray(bookmarks.postId, postIds))),
-          db.select({ postId: favorites.postId }).from(favorites).where(and(eq(favorites.userId, userId), inArray(favorites.postId, postIds))),
-        ]);
-        bookmarkSet = new Set(userBookmarks.map((b) => b.postId));
-        favoriteSet = new Set(userFavorites.map((f) => f.postId));
+        const userStars = await db.select({ postId: stars.postId }).from(stars).where(and(eq(stars.userId, userId), inArray(stars.postId, postIds)));
+        starSet = new Set(userStars.map((s) => s.postId));
       }
 
       const data: PostWithInteractions[] = rows.map((r) => {
@@ -579,9 +562,8 @@ export class PostQueries {
             parent: r.parentId ? { id: r.parentId, name: r.parentName ?? "", slug: r.parentSlug ?? "" } : null,
           },
           tags: tagsMap.get(p.id) ?? [],
-          _count: { bookmarks: counts.bookmarks.get(p.id) ?? 0, favorites: counts.favorites.get(p.id) ?? 0 },
-          isBookmarked: userId ? bookmarkSet.has(p.id) : false,
-          isFavorited: userId ? favoriteSet.has(p.id) : false,
+          _count: { stars: counts.get(p.id) ?? 0 },
+          isStarred: userId ? starSet.has(p.id) : false,
         };
       });
 
@@ -626,12 +608,12 @@ export class PostQueries {
           )
         );
       }
-      // Aggregated favorites subquery — avoids correlated subquery per row
-      const favCounts = db
-        .select({ postId: favorites.postId, cnt: sql<number>`count(*)::int`.as("cnt") })
-        .from(favorites)
-        .groupBy(favorites.postId)
-        .as("fav_counts");
+      // Aggregated stars subquery — avoids correlated subquery per row
+      const starCounts = db
+        .select({ postId: stars.postId, cnt: sql<number>`count(*)::int`.as("cnt") })
+        .from(stars)
+        .groupBy(stars.postId)
+        .as("star_counts");
 
       const rows = await db
         .select({
@@ -651,7 +633,7 @@ export class PostQueries {
         .leftJoin(users, eq(posts.authorId, users.id))
         .leftJoin(categories, eq(posts.categoryId, categories.id))
         .leftJoin(parentCategory, eq(categories.parentId, parentCategory.id))
-        .leftJoin(favCounts, eq(posts.id, favCounts.postId))
+        .leftJoin(starCounts, eq(posts.id, starCounts.postId))
         .where(
           and(
             eq(posts.isPublished, true),
@@ -659,25 +641,20 @@ export class PostQueries {
             or(...orConditions)
           )
         )
-        .orderBy(desc(sql`coalesce(${favCounts.cnt}, 0)`), desc(posts.createdAt))
+        .orderBy(desc(sql`coalesce(${starCounts.cnt}, 0)`), desc(posts.createdAt))
         .limit(limit);
 
       const postIds = rows.map((r) => r.post.id);
       const [tagsMap, mediaMap, counts] = await Promise.all([
         getTagsForPostIds(postIds),
         getMediaForPostIds(postIds, true),
-        getBookmarkAndFavoriteCounts(postIds),
+        getStarCounts(postIds),
       ]);
 
-      let bookmarkSet = new Set<string>();
-      let favoriteSet = new Set<string>();
+      let starSet = new Set<string>();
       if (userId && postIds.length > 0) {
-        const [userBookmarks, userFavorites] = await Promise.all([
-          db.select({ postId: bookmarks.postId }).from(bookmarks).where(and(eq(bookmarks.userId, userId), inArray(bookmarks.postId, postIds))),
-          db.select({ postId: favorites.postId }).from(favorites).where(and(eq(favorites.userId, userId), inArray(favorites.postId, postIds))),
-        ]);
-        bookmarkSet = new Set(userBookmarks.map((b) => b.postId));
-        favoriteSet = new Set(userFavorites.map((f) => f.postId));
+        const userStars = await db.select({ postId: stars.postId }).from(stars).where(and(eq(stars.userId, userId), inArray(stars.postId, postIds)));
+        starSet = new Set(userStars.map((s) => s.postId));
       }
 
       return rows.map((r) => {
@@ -708,9 +685,8 @@ export class PostQueries {
             parent: r.parentId ? { id: r.parentId, name: r.parentName ?? "", slug: r.parentSlug ?? "" } : null,
           },
           tags: tagsMap.get(p.id) ?? [],
-          _count: { bookmarks: counts.bookmarks.get(p.id) ?? 0, favorites: counts.favorites.get(p.id) ?? 0 },
-          isBookmarked: userId ? bookmarkSet.has(p.id) : false,
-          isFavorited: userId ? favoriteSet.has(p.id) : false,
+          _count: { stars: counts.get(p.id) ?? 0 },
+          isStarred: userId ? starSet.has(p.id) : false,
         };
       });
     } finally {
@@ -738,15 +714,12 @@ export class PostQueries {
       const [tagsList, mediaList, counts] = await Promise.all([
         getTagsForPostIds([p.id]),
         getMediaForPostIds([p.id], false),
-        getBookmarkAndFavoriteCounts([p.id]),
+        getStarCounts([p.id]),
       ]);
-      let isBookmarked = false;
-      let isFavorited = false;
+      let isStarred = false;
       if (userId) {
-        const [b] = await db.select().from(bookmarks).where(and(eq(bookmarks.postId, p.id), eq(bookmarks.userId, userId))).limit(1);
-        const [f] = await db.select().from(favorites).where(and(eq(favorites.postId, p.id), eq(favorites.userId, userId))).limit(1);
-        isBookmarked = !!b;
-        isFavorited = !!f;
+        const [starRow] = await db.select().from(stars).where(and(eq(stars.postId, p.id), eq(stars.userId, userId))).limit(1);
+        isStarred = !!starRow;
       }
       return {
         id: p.id,
@@ -782,9 +755,8 @@ export class PostQueries {
             : null,
         },
         tags: tagsList.get(p.id) ?? [],
-        _count: { bookmarks: counts.bookmarks.get(p.id) ?? 0, favorites: counts.favorites.get(p.id) ?? 0 },
-        isBookmarked,
-        isFavorited,
+        _count: { stars: counts.get(p.id) ?? 0 },
+        isStarred,
       } as PostFullWithInteractions;
     } finally {
       endTimer();
@@ -804,7 +776,57 @@ export class PostQueries {
         .limit(1);
       const row = rows[0];
       if (!row) return null;
-      return PostQueries.getById(row.posts.id, userId);
+      const p = row.posts;
+      const parentCat =
+        (row as { parent_category?: { id: string; name: string; slug: string } | null })
+          .parent_category ?? null;
+      const [tagsList, mediaList, counts] = await Promise.all([
+        getTagsForPostIds([p.id]),
+        getMediaForPostIds([p.id], false),
+        getStarCounts([p.id]),
+      ]);
+      let isStarred = false;
+      if (userId) {
+        const [starRow] = await db.select().from(stars).where(and(eq(stars.postId, p.id), eq(stars.userId, userId))).limit(1);
+        isStarred = !!starRow;
+      }
+      return {
+        id: p.id,
+        title: p.title,
+        slug: p.slug,
+        description: p.description,
+        content: p.content,
+        uploadPath: p.uploadPath,
+        uploadFileType: p.uploadFileType,
+        previewPath: p.previewPath,
+        previewVideoPath: p.previewVideoPath,
+        blurData: p.blurData,
+        isPremium: p.isPremium ?? false,
+        isFeatured: p.isFeatured ?? false,
+        isPublished: p.isPublished ?? false,
+        status: p.status ?? "DRAFT",
+        media: (mediaList.get(p.id) ?? []) as { id: string; mimeType: string; relativePath: string }[],
+        authorId: p.authorId,
+        createdAt: p.createdAt!,
+        updatedAt: p.updatedAt!,
+        author: {
+          id: row.users?.id ?? "",
+          name: row.users?.name ?? null,
+          avatar: row.users?.avatar ?? null,
+          email: row.users?.email ?? "",
+        },
+        category: {
+          id: row.categories?.id ?? "",
+          name: row.categories?.name ?? "",
+          slug: row.categories?.slug ?? "",
+          parent: parentCat
+            ? { id: parentCat.id, name: parentCat.name ?? "", slug: parentCat.slug ?? "" }
+            : null,
+        },
+        tags: tagsList.get(p.id) ?? [],
+        _count: { stars: counts.get(p.id) ?? 0 },
+        isStarred,
+      } as PostFullWithInteractions;
     } finally {
       endTimer();
     }
@@ -936,21 +958,27 @@ export class MetadataQueries {
   static async getAllTags() {
     const endTimer = DatabaseMetrics.startQuery();
     try {
-      const tagRows = await db.select().from(tags).orderBy(asc(tags.name));
-      const postTagCounts = await db
-        .select({ tagId: postToTag.B, count: sql<number>`count(*)::int` })
-        .from(postToTag)
-        .innerJoin(posts, eq(postToTag.A, posts.id))
-        .where(eq(posts.isPublished, true))
-        .groupBy(postToTag.B);
-      const countMap = new Map(postTagCounts.map((r) => [r.tagId, r.count]));
+      // Single JOIN query replaces two sequential queries
+      const rows = await db
+        .select({
+          id: tags.id,
+          name: tags.name,
+          slug: tags.slug,
+          createdAt: tags.createdAt,
+          postCount: sql<number>`count(case when ${posts.isPublished} = true then 1 end)::int`,
+        })
+        .from(tags)
+        .leftJoin(postToTag, eq(tags.id, postToTag.B))
+        .leftJoin(posts, eq(postToTag.A, posts.id))
+        .groupBy(tags.id, tags.name, tags.slug, tags.createdAt)
+        .orderBy(asc(tags.name));
 
-      return tagRows.map((t) => ({
+      return rows.map((t) => ({
         id: t.id,
         name: t.name,
         slug: t.slug,
         createdAt: t.createdAt,
-        _count: { posts: countMap.get(t.id) ?? 0 },
+        _count: { posts: t.postCount },
       }));
     } finally {
       endTimer();
@@ -960,29 +988,27 @@ export class MetadataQueries {
   static async getPopularTags(limit = 20) {
     const endTimer = DatabaseMetrics.startQuery();
     try {
+      // Single JOIN query replaces two sequential queries (count then fetch tags)
       const rows = await db
         .select({
-          tagId: postToTag.B,
-          count: sql<number>`count(*)::int`,
+          id: tags.id,
+          name: tags.name,
+          slug: tags.slug,
+          postCount: sql<number>`count(${postToTag.A})::int`,
         })
-        .from(postToTag)
-        .innerJoin(posts, eq(postToTag.A, posts.id))
-        .where(eq(posts.isPublished, true))
-        .groupBy(postToTag.B)
-        .orderBy(desc(sql`count(*)`))
+        .from(tags)
+        .innerJoin(postToTag, eq(tags.id, postToTag.B))
+        .innerJoin(posts, and(eq(postToTag.A, posts.id), eq(posts.isPublished, true)))
+        .groupBy(tags.id, tags.name, tags.slug)
+        .orderBy(desc(sql`count(${postToTag.A})`))
         .limit(limit);
 
-      const tagIds = rows.map((r) => r.tagId);
-      if (tagIds.length === 0) return [];
-      const tagList = await db.select().from(tags).where(inArray(tags.id, tagIds));
-      const tagMap = new Map(tagList.map((t) => [t.id, t]));
-      const countMap = new Map(rows.map((r) => [r.tagId, r.count]));
-
-      return rows.map((r) => {
-        const t = tagMap.get(r.tagId);
-        if (!t) return null;
-        return { id: t.id, name: t.name, slug: t.slug, _count: { posts: countMap.get(r.tagId) ?? 0 } };
-      }).filter(Boolean) as { id: string; name: string; slug: string; _count: { posts: number } }[];
+      return rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        slug: r.slug,
+        _count: { posts: r.postCount },
+      }));
     } finally {
       endTimer();
     }

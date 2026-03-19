@@ -41,10 +41,6 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: false,
   },
 
-  eslint: {
-    ignoreDuringBuilds: false,
-  },
-
   images: {
     formats: ["image/webp", "image/avif"],
     minimumCacheTTL: 31536000,
@@ -75,16 +71,6 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "**.supabase.co",
       },
-    ],
-  },
-
-  experimental: {
-    optimizePackageImports: [
-      "lucide-react",
-      "@tabler/icons-react",
-      "@radix-ui/react-icons",
-      "recharts",
-      "framer-motion",
     ],
   },
 

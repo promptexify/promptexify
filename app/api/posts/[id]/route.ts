@@ -4,7 +4,7 @@ import { getPostById } from "@/lib/content";
 import { getPublicUrl } from "@/lib/image/storage";
 import { SECURITY_HEADERS } from "@/lib/security/sanitize";
 import { db } from "@/lib/db";
-import { bookmarks, favorites } from "@/lib/db/schema";
+import { stars } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 
 interface RouteParams {
@@ -67,26 +67,18 @@ async function handlePostRequest(request: NextRequest, { params }: RouteParams, 
       }
     }
 
-    // Merge bookmark/favorite status into response if user is authenticated
+    // Merge star status into response if user is authenticated
     // This eliminates the need for a separate /status API call
-    let interactionStatus = { isBookmarked: false, isFavorited: false };
+    let interactionStatus = { isStarred: false };
     const userId = user?.userData?.id;
 
     if (userId) {
-      const [bookmark] = await db
-        .select({ id: bookmarks.id })
-        .from(bookmarks)
-        .where(and(eq(bookmarks.userId, userId), eq(bookmarks.postId, id)))
+      const [star] = await db
+        .select({ id: stars.id })
+        .from(stars)
+        .where(and(eq(stars.userId, userId), eq(stars.postId, id)))
         .limit(1);
-      const [favorite] = await db
-        .select({ id: favorites.id })
-        .from(favorites)
-        .where(and(eq(favorites.userId, userId), eq(favorites.postId, id)))
-        .limit(1);
-      interactionStatus = {
-        isBookmarked: !!bookmark,
-        isFavorited: !!favorite,
-      };
+      interactionStatus = { isStarred: !!star };
     }
 
     return NextResponse.json({

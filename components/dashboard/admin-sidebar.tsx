@@ -9,8 +9,7 @@ import {
   IconEdit,
   IconTags,
   IconCategory,
-  IconBookmark,
-  IconHeart,
+  IconStar,
   IconRobot,
   IconUserCircle,
   type Icon,
@@ -71,14 +70,9 @@ const navigationData: {
       icon: IconDashboard,
     },
     {
-      title: "Bookmarks",
-      url: "/bookmarks",
-      icon: IconBookmark,
-    },
-    {
-      title: "Favorites",
-      url: "/favorites",
-      icon: IconHeart,
+      title: "Stars",
+      url: "/stars",
+      icon: IconStar,
     },
   ],
 

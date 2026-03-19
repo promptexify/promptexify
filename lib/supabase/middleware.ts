@@ -70,8 +70,7 @@ export async function updateSession(request: NextRequest) {
   // Protected routes - require authentication (dashboard and top-level app routes)
   const protectedPrefixes = [
     "/dashboard",
-    "/bookmarks",
-    "/favorites",
+    "/stars",
     "/account",
     "/settings",
     "/posts",

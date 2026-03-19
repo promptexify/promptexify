@@ -49,3 +49,5 @@ next-env.d.ts
 /public/images
 
 env.prod
+
+.mcp.json

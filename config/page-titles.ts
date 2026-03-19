@@ -3,13 +3,9 @@ export const PAGE_TITLES = {
     title: "Dashboard",
     description: "Overview of your activity and saved content",
   },
-  "/favorites": {
-    title: "Favorites",
-    description: "Posts you've liked, organized by date",
-  },
-  "/bookmarks": {
-    title: "Your Bookmarks",
-    description: "Your saved prompts and bookmarked content",
+  "/stars": {
+    title: "Your Stars",
+    description: "Your starred prompts and saved content",
   },
   "/account": {
     title: "Account Settings",

@@ -5,8 +5,7 @@ import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PostWithInteractions } from "@/lib/content";
-import { BookmarkButton } from "@/components/bookmark-button";
-import { FavoriteButton } from "@/components/favorite-button";
+import { StarButton } from "@/components/star-button";
 import { MediaImage, MediaVideo } from "@/components/media-display";
 
 import {
@@ -263,14 +262,9 @@ export function PostCard({
               </div>
 
               <div className="flex items-center gap-1">
-                <BookmarkButton
+                <StarButton
                   postId={post.id}
-                  initialBookmarked={post.isBookmarked}
-                  size="sm"
-                />
-                <FavoriteButton
-                  postId={post.id}
-                  initialFavorited={post.isFavorited}
+                  initialStarred={post.isStarred}
                   size="sm"
                 />
               </div>

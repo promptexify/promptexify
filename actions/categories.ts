@@ -6,7 +6,7 @@ import { eq, ne, and, sql } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { revalidateCache, CACHE_TAGS } from "@/lib/cache";
-import { handleAuthRedirect } from "./auth";
+import { redirect } from "next/navigation";
 import { withCSRFProtection } from "@/lib/security/csp";
 
 // Category management actions
@@ -16,7 +16,7 @@ export const createCategoryAction = withCSRFProtection(
       // Get the current user
       const currentUser = await getCurrentUser();
       if (!currentUser?.userData) {
-        handleAuthRedirect();
+        redirect("/signin");
       }
 
       // Temporarily disabled for testing - uncomment to re-enable admin protection

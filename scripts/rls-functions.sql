@@ -13,7 +13,7 @@ SET search_path = public
 AS $$
   SELECT EXISTS (
     SELECT 1 FROM public.users
-    WHERE id = auth.uid()::text
+    WHERE id::uuid = auth.uid()
     AND role = 'ADMIN'
   );
 $$;

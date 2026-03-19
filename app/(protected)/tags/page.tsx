@@ -72,31 +72,54 @@ function TableSkeleton() {
 async function TagsManagementContent({
   searchParams,
 }: TagsManagementPageProps) {
+  let currentPage: number;
+  let validPageSize: number;
+  let filters: { search: string | undefined; sortBy: "name" | "created" | "posts" };
+  let paginatedTags: Awaited<ReturnType<typeof getTagsPaginated>>;
+
   try {
     // Parse search params
     const params = await searchParams;
-    const currentPage = parseInt(params.page || "1", 10);
+    currentPage = parseInt(params.page || "1", 10);
     const pageSize = parseInt(params.pageSize || "10", 10);
 
     // Parse filter parameters
-    const filters = {
+    filters = {
       search: params.search,
       sortBy: (params.sortBy as "name" | "created" | "posts") || "name",
     };
 
     // Validate page size
-    const validPageSize = Math.min(Math.max(pageSize, 5), 50);
+    validPageSize = Math.min(Math.max(pageSize, 5), 50);
 
     // Get tags with pagination and search
-    const paginatedTags = await getTagsPaginated(
+    paginatedTags = await getTagsPaginated(
       currentPage,
       validPageSize,
       filters.search,
       filters.sortBy
     );
+  } catch (error) {
+    console.error("Error loading tags:", error);
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Error</CardTitle>
+          <CardDescription>
+            Failed to load tags. Please try again later.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button onClick={() => window.location.reload()}>
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
-    // Generate pagination links
-    const generatePageLink = (page: number) => {
+  // Generate pagination links
+  const generatePageLink = (page: number) => {
       const url = new URL("/tags", "http://localhost");
 
       // Add current filters
@@ -259,25 +282,8 @@ async function TagsManagementContent({
         </Card>
       </>
     );
-  } catch (error) {
-    console.error("Error loading tags:", error);
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Error</CardTitle>
-          <CardDescription>
-            Failed to load tags. Please try again later.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button onClick={() => window.location.reload()}>
-            Retry
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
 }
+
 
 export default async function TagsManagementPage({
   searchParams,

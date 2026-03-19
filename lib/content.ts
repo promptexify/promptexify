@@ -59,22 +59,12 @@ export interface PostWithDetails {
     slug: string;
   }[];
   _count: {
-    bookmarks: number;
-    favorites: number;
+    stars: number;
   };
 }
 
-export interface PostWithBookmark extends PostWithDetails {
-  isBookmarked?: boolean;
-}
-
-export interface PostWithFavorite extends PostWithDetails {
-  isFavorited?: boolean;
-}
-
 export interface PostWithInteractions extends PostWithDetails {
-  isBookmarked?: boolean;
-  isFavorited?: boolean;
+  isStarred?: boolean;
 }
 
 export interface TagWithCount {
