@@ -581,8 +581,8 @@ export default async function PostsManagementPage({
             </div>
             <Link href="/posts/new">
               <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                {user.userData?.role === "ADMIN" ? "New Post" : "Submit Prompt"}
+                <Plus className="mr-1 h-4 w-4" />
+                {user.userData?.role === "ADMIN" ? "New Post" : "Create"}
               </Button>
             </Link>
           </div>

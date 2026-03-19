@@ -199,6 +199,13 @@ export function SignUpForm() {
             description="We'll send you a secure link to create your account and sign in"
           />
 
+          <TurnstileWidget
+            onSuccess={setTurnstileToken}
+            onExpire={() => setTurnstileToken(null)}
+            onError={() => setTurnstileToken(null)}
+            size="invisible"
+          />
+
           <Button
             type="submit"
             disabled={isMagicLinkPending || isGooglePending}

@@ -780,8 +780,7 @@ export default function EditPostPage() {
               onSuccess={setTurnstileToken}
               onExpire={() => setTurnstileToken(null)}
               onError={() => setTurnstileToken(null)}
-              size="normal"
-              className="flex justify-end"
+              size="invisible"
             />
 
             <div className="flex justify-end gap-4">

@@ -193,6 +193,7 @@ export function SignInForm() {
             onSuccess={setTurnstileToken}
             onExpire={() => setTurnstileToken(null)}
             onError={() => setTurnstileToken(null)}
+            size="invisible"
           />
 
           <Button
