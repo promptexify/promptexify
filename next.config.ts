@@ -98,9 +98,8 @@ const nextConfig: NextConfig = {
           {
             key: "Access-Control-Allow-Origin",
             // Never fall back to "*" — that allows any site to read API responses.
-            // Set NEXT_PUBLIC_CORS_ALLOWED_ORIGIN to the allowed origin in production.
             // "null" tells browsers to deny all cross-origin requests by default.
-            value: process.env.NEXT_PUBLIC_CORS_ALLOWED_ORIGIN || "null",
+            value: process.env.NEXT_PUBLIC_BASE_URL || "null",
           },
           {
             key: "Access-Control-Allow-Methods",
