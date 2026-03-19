@@ -100,19 +100,10 @@ export async function getStorageConfig(): Promise<StorageConfig> {
     console.error("Failed to fetch storage config:", error);
   }
 
-  // Fallback to environment variables (existing S3 config)
+  // No DB settings found — fall back to local filesystem so uploads still
+  // work in a fresh dev environment without any configuration.
   const fallbackConfig: StorageConfig = {
-    storageType: "S3",
-    s3BucketName: process.env.AWS_S3_BUCKET_NAME,
-    s3Region: process.env.AWS_REGION || "us-east-1",
-    s3AccessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    s3SecretKey: process.env.AWS_SECRET_ACCESS_KEY,
-    s3CloudfrontUrl: process.env.AWS_CLOUDFRONT_URL,
-    doSpaceName: process.env.DO_SPACE_NAME,
-    doRegion: process.env.DO_REGION,
-    doAccessKeyId: process.env.DO_ACCESS_KEY_ID,
-    doSecretKey: process.env.DO_SECRET_KEY,
-    doCdnUrl: process.env.DO_CDN_URL,
+    storageType: "LOCAL",
     localBasePath: "/uploads",
     localBaseUrl: "/uploads",
     maxImageSize: 2097152, // 2MB

@@ -45,7 +45,15 @@ export async function POST(request: NextRequest) {
           VALID_PATH_PREFIXES.some((prefix) => p.startsWith(prefix)),
         "Path must start with images/, videos/, preview/, data-uploads/, or be a full URL"
       )
-      .refine((p) => !p.includes("..") && !p.includes("\0"), "Invalid path");
+      .refine((p) => {
+        // Decode once and re-check so %2f..%2f-style bypasses are caught.
+        try {
+          const decoded = decodeURIComponent(p);
+          return !decoded.includes("..") && !decoded.includes("\0");
+        } catch {
+          return false; // malformed percent-encoding
+        }
+      }, "Invalid path");
 
     const bodySchema = z.object({
       paths: z.array(mediaPathSchema).max(50).nonempty("paths array required"),

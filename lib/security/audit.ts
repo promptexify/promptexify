@@ -256,7 +256,14 @@ export const SecurityEvents = {
 export function getClientIP(request: Request): string {
   const forwarded = request.headers.get("x-forwarded-for");
   const realIp = request.headers.get("x-real-ip");
-  return forwarded?.split(",")[0] || realIp || "unknown";
+  // Take only the first entry from x-forwarded-for (the original client IP
+  // set by the trusted proxy). Trim whitespace introduced by proxy chains.
+  const candidate = forwarded?.split(",")[0]?.trim() || realIp?.trim() || "";
+  // Accept IPv4 and IPv6; reject anything that looks spoofed or malformed.
+  const ipv4 = /^(\d{1,3}\.){3}\d{1,3}$/;
+  const ipv6 = /^[0-9a-fA-F:]{2,39}$/;
+  if (ipv4.test(candidate) || ipv6.test(candidate)) return candidate;
+  return "unknown";
 }
 
 /**

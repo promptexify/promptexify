@@ -693,7 +693,17 @@ export async function changeUserRoleAction(
     }
 
     if (targetUser.role === "ADMIN" && newRole === "USER") {
-      return { success: false, error: "You cannot demote another admin" };
+      // Block demotion only if this is the last admin — always keep at least one.
+      const [{ count }] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(users)
+        .where(eq(users.role, "ADMIN"));
+      if (Number(count) <= 1) {
+        return {
+          success: false,
+          error: "Cannot demote the last admin — promote another user first",
+        };
+      }
     }
 
     await db

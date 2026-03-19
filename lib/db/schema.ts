@@ -21,6 +21,7 @@ import {
   pgPolicy,
   primaryKey,
   customType,
+  uuid,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
@@ -415,11 +416,11 @@ export const logs = pgTable(
       to: "public",
       using: isAdmin,
     }),
-    pgPolicy("logs_insert_authenticated", {
+    pgPolicy("logs_insert_admin", {
       as: "permissive",
       for: "insert",
-      to: authenticatedRole,
-      withCheck: sql`true`,
+      to: "public",
+      withCheck: isAdmin,
     }),
   ]
 ).enableRLS();
@@ -491,13 +492,13 @@ export const settings = pgTable(
     storageType: storageTypeEnum("storageType").default("S3").notNull(),
     s3BucketName: text("s3BucketName"),
     s3Region: text("s3Region"),
-    s3AccessKeyId: text("s3AccessKeyId"),
-    s3SecretKey: text("s3SecretKey"),
+    s3AccessKeyIdVaultId: uuid("s3AccessKeyIdVaultId"),
+    s3SecretKeyVaultId: uuid("s3SecretKeyVaultId"),
     s3CloudfrontUrl: text("s3CloudfrontUrl"),
     doSpaceName: text("doSpaceName"),
     doRegion: text("doRegion"),
-    doAccessKeyId: text("doAccessKeyId"),
-    doSecretKey: text("doSecretKey"),
+    doAccessKeyIdVaultId: uuid("doAccessKeyIdVaultId"),
+    doSecretKeyVaultId: uuid("doSecretKeyVaultId"),
     doCdnUrl: text("doCdnUrl"),
     localBasePath: text("localBasePath").default("/uploads").notNull(),
     localBaseUrl: text("localBaseUrl").default("/uploads").notNull(),

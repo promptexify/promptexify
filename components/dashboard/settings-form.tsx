@@ -112,6 +112,8 @@ export function SettingsForm() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(true);
+  const [hasS3Credentials, setHasS3Credentials] = useState(false);
+  const [hasDoCredentials, setHasDoCredentials] = useState(false);
 
   const form = useForm<FormData>({
     resolver: zodResolver(settingsFormSchema),
@@ -155,17 +157,26 @@ export function SettingsForm() {
         const result = await getSettingsAction();
         if (result.success && result.data) {
           const settings = result.data;
+          // Track vault presence so credential inputs can show "saved" state
+          setHasS3Credentials(
+            (settings as { hasS3Credentials?: boolean }).hasS3Credentials ?? false
+          );
+          setHasDoCredentials(
+            (settings as { hasDoCredentials?: boolean }).hasDoCredentials ?? false
+          );
           form.reset({
             storageType: settings.storageType ?? undefined,
             s3BucketName: settings.s3BucketName || "",
             s3Region: settings.s3Region || "us-east-1",
-            s3AccessKeyId: settings.s3AccessKeyId || "",
-            s3SecretKey: settings.s3SecretKey || "",
+            // Credentials are in Vault — leave fields empty so admins can
+            // type a new value to replace, or leave blank to keep existing.
+            s3AccessKeyId: "",
+            s3SecretKey: "",
             s3CloudfrontUrl: settings.s3CloudfrontUrl || "",
             doSpaceName: settings.doSpaceName || "",
             doRegion: settings.doRegion || "",
-            doAccessKeyId: settings.doAccessKeyId || "",
-            doSecretKey: settings.doSecretKey || "",
+            doAccessKeyId: "",
+            doSecretKey: "",
             doCdnUrl: settings.doCdnUrl || "",
             localBasePath: settings.localBasePath || "/uploads",
             localBaseUrl: settings.localBaseUrl || "/uploads",
@@ -391,10 +402,19 @@ export function SettingsForm() {
                             <FormLabel>Access Key ID</FormLabel>
                             <FormControl>
                               <Input
-                                placeholder="AKIAIOSFODNN7EXAMPLE"
+                                placeholder={
+                                  hasS3Credentials
+                                    ? "Saved in Vault — enter new value to replace"
+                                    : "AKIAIOSFODNN7EXAMPLE"
+                                }
                                 {...field}
                               />
                             </FormControl>
+                            {hasS3Credentials && !field.value && (
+                              <p className="text-xs text-muted-foreground">
+                                Access key is saved in Supabase Vault. Leave blank to keep existing.
+                              </p>
+                            )}
                             <FormMessage />
                           </FormItem>
                         )}
@@ -403,37 +423,28 @@ export function SettingsForm() {
                       <FormField
                         control={form.control}
                         name="s3SecretKey"
-                        render={({ field }) => {
-                          const hasExistingValue =
-                            field.value && field.value.length > 0;
-                          return (
-                            <FormItem>
-                              <FormLabel>Secret Access Key</FormLabel>
-                              <FormControl>
-                                <Input
-                                  type="password"
-                                  placeholder={
-                                    hasExistingValue
-                                      ? "••••••••••••••••••••••••••••••••"
-                                      : "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
-                                  }
-                                  {...field}
-                                  onChange={(e) => {
-                                    // Allow clearing or updating the field
-                                    field.onChange(e.target.value);
-                                  }}
-                                />
-                              </FormControl>
-                              {hasExistingValue && (
-                                <p className="text-xs text-muted-foreground">
-                                  Secret key is configured. Enter a new value to
-                                  update.
-                                </p>
-                              )}
-                              <FormMessage />
-                            </FormItem>
-                          );
-                        }}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Secret Access Key</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="password"
+                                placeholder={
+                                  hasS3Credentials
+                                    ? "Saved in Vault — enter new value to replace"
+                                    : "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+                                }
+                                {...field}
+                              />
+                            </FormControl>
+                            {hasS3Credentials && !field.value && (
+                              <p className="text-xs text-muted-foreground">
+                                Secret key is saved in Supabase Vault. Leave blank to keep existing.
+                              </p>
+                            )}
+                            <FormMessage />
+                          </FormItem>
+                        )}
                       />
                     </div>
 
@@ -504,10 +515,19 @@ export function SettingsForm() {
                             <FormLabel>Access Key ID</FormLabel>
                             <FormControl>
                               <Input
-                                placeholder="DO00ABC123DEF456GHI7"
+                                placeholder={
+                                  hasDoCredentials
+                                    ? "Saved in Vault — enter new value to replace"
+                                    : "DO00ABC123DEF456GHI7"
+                                }
                                 {...field}
                               />
                             </FormControl>
+                            {hasDoCredentials && !field.value && (
+                              <p className="text-xs text-muted-foreground">
+                                Access key is saved in Supabase Vault. Leave blank to keep existing.
+                              </p>
+                            )}
                             <FormMessage />
                           </FormItem>
                         )}
@@ -516,37 +536,28 @@ export function SettingsForm() {
                       <FormField
                         control={form.control}
                         name="doSecretKey"
-                        render={({ field }) => {
-                          const hasExistingValue =
-                            field.value && field.value.length > 0;
-                          return (
-                            <FormItem>
-                              <FormLabel>Secret Access Key</FormLabel>
-                              <FormControl>
-                                <Input
-                                  type="password"
-                                  placeholder={
-                                    hasExistingValue
-                                      ? "••••••••••••••••••••••••••••••••"
-                                      : "abcdefghijklmnopqrstuvwxyz123456789"
-                                  }
-                                  {...field}
-                                  onChange={(e) => {
-                                    // Allow clearing or updating the field
-                                    field.onChange(e.target.value);
-                                  }}
-                                />
-                              </FormControl>
-                              {hasExistingValue && (
-                                <p className="text-xs text-muted-foreground">
-                                  Secret key is configured. Enter a new value to
-                                  update.
-                                </p>
-                              )}
-                              <FormMessage />
-                            </FormItem>
-                          );
-                        }}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Secret Access Key</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="password"
+                                placeholder={
+                                  hasDoCredentials
+                                    ? "Saved in Vault — enter new value to replace"
+                                    : "abcdefghijklmnopqrstuvwxyz123456789"
+                                }
+                                {...field}
+                              />
+                            </FormControl>
+                            {hasDoCredentials && !field.value && (
+                              <p className="text-xs text-muted-foreground">
+                                Secret key is saved in Supabase Vault. Leave blank to keep existing.
+                              </p>
+                            )}
+                            <FormMessage />
+                          </FormItem>
+                        )}
                       />
                     </div>
 

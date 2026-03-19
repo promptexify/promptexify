@@ -212,7 +212,7 @@ function createRateLimits() {
         createPost: { limit: 3, window: 60 * 1000 }, // 3 posts per minute
         createTag: { limit: 15, window: 60 * 1000 }, // 15 tags per minute
         api: { limit: 60, window: 60 * 1000 }, // 60 requests per minute
-        admin: { limit: 30, window: 60 * 1000 }, // 30 admin requests per minute (stricter)
+        admin: { limit: 10, window: 60 * 1000 }, // 10 admin requests per minute
         search: { limit: 30, window: 60 * 1000 }, // 30 searches per minute
         interactions: { limit: 100, window: 60 * 1000 }, // 100 interactions per minute
         mediaResolve: { limit: 100, window: 60 * 1000 }, // 100 media URL resolves per minute

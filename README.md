@@ -54,7 +54,7 @@ Promptexify is a community-driven prompt marketplace for vibe coders — develop
 - Node.js 20+
 - Supabase project (PostgreSQL + Auth)
 - Redis (optional in dev — in-memory fallback available)
-- AWS S3 or DigitalOcean Spaces (optional — local storage works too)
+- AWS S3 or DigitalOcean Spaces (optional — configured via Admin Dashboard, not env vars)
 
 ### Setup
 
@@ -75,8 +75,10 @@ Promptexify is a community-driven prompt marketplace for vibe coders — develop
 
    ```bash
    cp env.template .env.local
-   # Fill in your Supabase, database, Redis, and storage credentials
+   # Fill in your Supabase, database, and Redis credentials
    ```
+
+   > **Storage credentials** (AWS S3 / DigitalOcean access keys) are entered through the Admin Dashboard and stored encrypted in Supabase Vault — do not put them in `.env.local`.
 
 4. **Set up the database**
 
@@ -110,6 +112,8 @@ See `env.template` for the full list. Key variables:
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key |
 | `REDIS_URL` | Redis connection (optional in dev) |
 | `DATABASE_POOLER_MODE` | Set to `transaction` when using Supabase connection pooler |
+
+**No storage environment variables are required.** All storage configuration — provider, bucket, region, and credentials — is managed through the Admin Dashboard (`/dashboard/settings`). Credentials are stored encrypted in Supabase Vault. When no settings row exists yet, the app defaults to local filesystem storage.
 
 ## Scripts
 
@@ -189,6 +193,7 @@ Schema changes deploy automatically on every production build — no manual migr
 - **Input Sanitization** — Applied before all DB writes via `lib/security/sanitize.ts`
 - **Audit Logging** — Security events logged to the `logs` table
 - **Row-Level Security** — Postgres RLS policies enforced at the database level
+- **Supabase Vault** — Storage credentials (S3/DO access keys) encrypted at rest via `pgsodium`; never stored in plaintext
 
 ## Contributing
 

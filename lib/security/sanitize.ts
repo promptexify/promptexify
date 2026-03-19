@@ -742,9 +742,10 @@ function getSecurityHeaders() {
       ...baseHeaders,
       // Don't enforce HSTS in development (allows HTTP)
       "X-Permitted-Cross-Domain-Policies": "none",
-      // Less strict CORS policies for development
+      // COEP relaxed in dev to avoid blocking cross-origin resources in devtools.
+      // COOP stays same-origin everywhere — window.opener attacks are never acceptable.
       "Cross-Origin-Embedder-Policy": "unsafe-none",
-      "Cross-Origin-Opener-Policy": "unsafe-none",
+      "Cross-Origin-Opener-Policy": "same-origin",
     };
   }
 }
@@ -768,7 +769,7 @@ export function getRateLimitConfig() {
       createPost: { limit: 3, window: 60 * 1000 }, // 3 posts per minute
       createTag: { limit: 15, window: 60 * 1000 }, // 15 tags per minute
       api: { limit: 60, window: 60 * 1000 }, // 60 requests per minute
-      admin: { limit: 30, window: 60 * 1000 }, // 30 admin requests per minute
+      admin: { limit: 10, window: 60 * 1000 }, // 10 admin requests per minute
       search: { limit: 30, window: 60 * 1000 }, // 30 searches per minute
       interactions: { limit: 100, window: 60 * 1000 }, // 100 interactions per minute
       mediaResolve: { limit: 100, window: 60 * 1000 }, // 100 media resolves per minute

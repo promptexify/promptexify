@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { settings as settingsTable, type StorageType } from "@/lib/db/schema";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { sanitizeInput } from "@/lib/security/sanitize";
 import { clearStorageConfigCache } from "@/lib/image/storage";
@@ -100,7 +100,21 @@ export async function getSettingsAction() {
 
     return {
       success: true,
-      data: settings,
+      data: {
+        ...settings,
+        // Never return vault IDs or plaintext credentials to the client.
+        // Expose boolean flags so the form can show a "saved" placeholder.
+        s3AccessKeyIdVaultId: undefined,
+        s3SecretKeyVaultId: undefined,
+        doAccessKeyIdVaultId: undefined,
+        doSecretKeyVaultId: undefined,
+        hasS3Credentials:
+          settings.s3AccessKeyIdVaultId != null &&
+          settings.s3SecretKeyVaultId != null,
+        hasDoCredentials:
+          settings.doAccessKeyIdVaultId != null &&
+          settings.doSecretKeyVaultId != null,
+      },
     };
   } catch (error) {
     console.error("Error fetching settings:", error);
@@ -109,6 +123,28 @@ export async function getSettingsAction() {
       error: "Failed to fetch settings",
     };
   }
+}
+
+/**
+ * Upsert a secret in Supabase Vault, returning the vault UUID.
+ * If vaultId is provided and the secret already exists, updates it in place.
+ * Otherwise creates a new secret.
+ */
+async function upsertVaultSecret(
+  value: string,
+  name: string,
+  existingVaultId: string | null | undefined
+): Promise<string> {
+  if (existingVaultId) {
+    await db.execute(
+      sql`SELECT vault.update_secret(${existingVaultId}::uuid, ${value})`
+    );
+    return existingVaultId;
+  }
+  const result = await db.execute(
+    sql`SELECT vault.create_secret(${value}, ${name}) AS id`
+  );
+  return (result[0] as { id: string }).id;
 }
 
 /**
@@ -181,13 +217,24 @@ export async function updateSettingsAction(data: SettingsFormData) {
         : undefined,
     };
 
+    // Fetch existing row first so we can check whether vault secrets are
+    // already stored (in which case empty credential fields are acceptable).
+    const [existing] = await db
+      .select()
+      .from(settingsTable)
+      .orderBy(desc(settingsTable.updatedAt))
+      .limit(1);
+
     // Additional validation for S3 configuration
     if (sanitizedData.storageType === "S3") {
+      const hasExistingS3Creds =
+        existing?.s3AccessKeyIdVaultId != null &&
+        existing?.s3SecretKeyVaultId != null;
       if (
         !sanitizedData.s3BucketName ||
         !sanitizedData.s3Region ||
-        !sanitizedData.s3AccessKeyId ||
-        !sanitizedData.s3SecretKey
+        (!sanitizedData.s3AccessKeyId && !hasExistingS3Creds) ||
+        (!sanitizedData.s3SecretKey && !hasExistingS3Creds)
       ) {
         return {
           success: false,
@@ -199,11 +246,14 @@ export async function updateSettingsAction(data: SettingsFormData) {
 
     // Additional validation for DigitalOcean Spaces configuration
     if (sanitizedData.storageType === "DOSPACE") {
+      const hasExistingDoCreds =
+        existing?.doAccessKeyIdVaultId != null &&
+        existing?.doSecretKeyVaultId != null;
       if (
         !sanitizedData.doSpaceName ||
         !sanitizedData.doRegion ||
-        !sanitizedData.doAccessKeyId ||
-        !sanitizedData.doSecretKey
+        (!sanitizedData.doAccessKeyId && !hasExistingDoCreds) ||
+        (!sanitizedData.doSecretKey && !hasExistingDoCreds)
       ) {
         return {
           success: false,
@@ -223,33 +273,75 @@ export async function updateSettingsAction(data: SettingsFormData) {
       }
     }
 
-    const [existing] = await db
-      .select()
-      .from(settingsTable)
-      .orderBy(desc(settingsTable.updatedAt))
-      .limit(1);
+    // Upsert credentials into Supabase Vault; only touch vault when a new
+    // value is actually provided (empty string = "leave existing unchanged").
+    const s3AccessKeyIdVaultId =
+      sanitizedData.s3AccessKeyId
+        ? await upsertVaultSecret(
+            sanitizedData.s3AccessKeyId,
+            "s3AccessKeyId",
+            existing?.s3AccessKeyIdVaultId
+          )
+        : existing?.s3AccessKeyIdVaultId ?? null;
+
+    const s3SecretKeyVaultId =
+      sanitizedData.s3SecretKey
+        ? await upsertVaultSecret(
+            sanitizedData.s3SecretKey,
+            "s3SecretKey",
+            existing?.s3SecretKeyVaultId
+          )
+        : existing?.s3SecretKeyVaultId ?? null;
+
+    const doAccessKeyIdVaultId =
+      sanitizedData.doAccessKeyId
+        ? await upsertVaultSecret(
+            sanitizedData.doAccessKeyId,
+            "doAccessKeyId",
+            existing?.doAccessKeyIdVaultId
+          )
+        : existing?.doAccessKeyIdVaultId ?? null;
+
+    const doSecretKeyVaultId =
+      sanitizedData.doSecretKey
+        ? await upsertVaultSecret(
+            sanitizedData.doSecretKey,
+            "doSecretKey",
+            existing?.doSecretKeyVaultId
+          )
+        : existing?.doSecretKeyVaultId ?? null;
+
+    // Strip plaintext credentials from the DB payload; store only vault IDs.
+    const {
+      s3AccessKeyId: _s3Key,
+      s3SecretKey: _s3Secret,
+      doAccessKeyId: _doKey,
+      doSecretKey: _doSecret,
+      ...nonSecretData
+    } = sanitizedData;
+
+    const dbPayload = {
+      ...nonSecretData,
+      storageType: sanitizedData.storageType as StorageType,
+      s3AccessKeyIdVaultId,
+      s3SecretKeyVaultId,
+      doAccessKeyIdVaultId,
+      doSecretKeyVaultId,
+      updatedBy: user.userData.id,
+    };
 
     let settings;
     if (existing) {
       const [updated] = await db
         .update(settingsTable)
-        .set({
-          ...sanitizedData,
-          storageType: sanitizedData.storageType as StorageType,
-          updatedBy: user.userData.id,
-          updatedAt: new Date(),
-        })
+        .set({ ...dbPayload, updatedAt: new Date() })
         .where(eq(settingsTable.id, existing.id))
         .returning();
       settings = updated!;
     } else {
       const [created] = await db
         .insert(settingsTable)
-        .values({
-          ...sanitizedData,
-          storageType: sanitizedData.storageType as StorageType,
-          updatedBy: user.userData.id,
-        })
+        .values(dbPayload)
         .returning();
       settings = created!;
     }
@@ -282,50 +374,58 @@ export async function updateSettingsAction(data: SettingsFormData) {
  */
 export async function getStorageConfigAction() {
   try {
-    const [settings] = await db
-      .select({
-        storageType: settingsTable.storageType,
-        s3BucketName: settingsTable.s3BucketName,
-        s3Region: settingsTable.s3Region,
-        s3AccessKeyId: settingsTable.s3AccessKeyId,
-        s3SecretKey: settingsTable.s3SecretKey,
-        s3CloudfrontUrl: settingsTable.s3CloudfrontUrl,
-        doSpaceName: settingsTable.doSpaceName,
-        doRegion: settingsTable.doRegion,
-        doAccessKeyId: settingsTable.doAccessKeyId,
-        doSecretKey: settingsTable.doSecretKey,
-        doCdnUrl: settingsTable.doCdnUrl,
-        localBasePath: settingsTable.localBasePath,
-        localBaseUrl: settingsTable.localBaseUrl,
-        maxImageSize: settingsTable.maxImageSize,
-        maxVideoSize: settingsTable.maxVideoSize,
-        enableCompression: settingsTable.enableCompression,
-        compressionQuality: settingsTable.compressionQuality,
-      })
-      .from(settingsTable)
-      .orderBy(desc(settingsTable.updatedAt))
-      .limit(1);
+    // JOIN vault.decrypted_secrets to retrieve the actual credential values
+    // without ever storing them in plaintext in the settings table.
+    const result = await db.execute(sql`
+      SELECT
+        s."storageType",
+        s."s3BucketName",
+        s."s3Region",
+        s."s3CloudfrontUrl",
+        s."doSpaceName",
+        s."doRegion",
+        s."doCdnUrl",
+        s."localBasePath",
+        s."localBaseUrl",
+        s."maxImageSize",
+        s."maxVideoSize",
+        s."enableCompression",
+        s."compressionQuality",
+        v1.decrypted_secret AS "s3AccessKeyId",
+        v2.decrypted_secret AS "s3SecretKey",
+        v3.decrypted_secret AS "doAccessKeyId",
+        v4.decrypted_secret AS "doSecretKey"
+      FROM settings s
+      LEFT JOIN vault.decrypted_secrets v1 ON v1.id = s."s3AccessKeyIdVaultId"
+      LEFT JOIN vault.decrypted_secrets v2 ON v2.id = s."s3SecretKeyVaultId"
+      LEFT JOIN vault.decrypted_secrets v3 ON v3.id = s."doAccessKeyIdVaultId"
+      LEFT JOIN vault.decrypted_secrets v4 ON v4.id = s."doSecretKeyVaultId"
+      ORDER BY s."updatedAt" DESC
+      LIMIT 1
+    `);
 
-    // Return default S3 configuration if no settings exist
+    const settings = result[0] as Record<string, unknown> | undefined;
+
+    // No settings row yet — default to local filesystem storage.
     if (!settings) {
       return {
         success: true,
         data: {
-          storageType: "S3" as StorageType,
-          s3BucketName: process.env.AWS_S3_BUCKET_NAME || null,
-          s3Region: process.env.AWS_REGION || "us-east-1",
-          s3AccessKeyId: process.env.AWS_ACCESS_KEY_ID || null,
-          s3SecretKey: process.env.AWS_SECRET_ACCESS_KEY || null,
-          s3CloudfrontUrl: process.env.AWS_CLOUDFRONT_URL || null,
-          doSpaceName: process.env.DO_SPACE_NAME || null,
-          doRegion: process.env.DO_REGION || null,
-          doAccessKeyId: process.env.DO_ACCESS_KEY_ID || null,
-          doSecretKey: process.env.DO_SECRET_KEY || null,
-          doCdnUrl: process.env.DO_CDN_URL || null,
+          storageType: "LOCAL" as StorageType,
+          s3BucketName: null,
+          s3Region: null,
+          s3AccessKeyId: null,
+          s3SecretKey: null,
+          s3CloudfrontUrl: null,
+          doSpaceName: null,
+          doRegion: null,
+          doAccessKeyId: null,
+          doSecretKey: null,
+          doCdnUrl: null,
           localBasePath: "/uploads",
           localBaseUrl: "/uploads",
-          maxImageSize: 2097152, // 2MB
-          maxVideoSize: 10485760, // 10MB
+          maxImageSize: 2097152,
+          maxVideoSize: 10485760,
           enableCompression: true,
           compressionQuality: 80,
         },
@@ -334,7 +434,25 @@ export async function getStorageConfigAction() {
 
     return {
       success: true,
-      data: settings,
+      data: settings as {
+        storageType: StorageType;
+        s3BucketName: string | null;
+        s3Region: string | null;
+        s3AccessKeyId: string | null;
+        s3SecretKey: string | null;
+        s3CloudfrontUrl: string | null;
+        doSpaceName: string | null;
+        doRegion: string | null;
+        doAccessKeyId: string | null;
+        doSecretKey: string | null;
+        doCdnUrl: string | null;
+        localBasePath: string;
+        localBaseUrl: string;
+        maxImageSize: number;
+        maxVideoSize: number;
+        enableCompression: boolean;
+        compressionQuality: number;
+      },
     };
   } catch (error) {
     console.error("Error fetching storage config:", error);
@@ -369,13 +487,13 @@ export async function resetSettingsToDefaultAction() {
       storageType: "S3" as StorageType,
       s3BucketName: null,
       s3Region: null,
-      s3AccessKeyId: null,
-      s3SecretKey: null,
+      s3AccessKeyIdVaultId: null,
+      s3SecretKeyVaultId: null,
       s3CloudfrontUrl: null,
       doSpaceName: null,
       doRegion: null,
-      doAccessKeyId: null,
-      doSecretKey: null,
+      doAccessKeyIdVaultId: null,
+      doSecretKeyVaultId: null,
       doCdnUrl: null,
       localBasePath: "/uploads",
       localBaseUrl: "/uploads",
