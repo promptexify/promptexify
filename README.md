@@ -1,15 +1,8 @@
-# ⚠️ IMPORTANT SECURITY NOTICE
-
-- Built with Claude Code and Google Antigravity.
-- This was built as a personal cybersecurity demonstration project.
-- Feel free to fork and modify it for your own purposes.
-- It contains intentional bugs and vulnerabilities that were included to serve its demonstration purposes.
-- This repository's commit history may contain hardcoded credentials that were included for demonstration purposes only.
-- Proceed at your own risk in production environment.
-
 # Promptexify
 
-A comprehensive AI prompt directory for ChatGPT, Claude, Gemini, AI Code Editor, and more. Discover, share, and manage high-quality AI prompts with powerful search, categorization, and collaboration features.
+**Directory for the New Coding Era.**
+
+A curated directory of Rules, MCP configurations, Skills, and prompts built for AI coding tools like Cursor and Claude Code. Copy, paste, and go.
 
 ## Demo
 
@@ -17,75 +10,58 @@ A comprehensive AI prompt directory for ChatGPT, Claude, Gemini, AI Code Editor,
 |-----------|----------------|
 | ![Promptexify Directory](public/promptexify-directory.webp) | ![Promptexify Dashboard](public/promptexify-dashboard.webp) |
 
+## What is Promptexify?
+
+Promptexify is a community-driven prompt marketplace for vibe coders — developers who build with AI. Instead of writing prompts from scratch, you discover, copy, and share ready-to-use templates optimized for AI coding workflows.
+
+- **Rules** — Project and editor rules for Cursor, Claude Code, and more
+- **MCP Configurations** — Ready-to-use Model Context Protocol setups
+- **Skills** — Reusable AI skill definitions
+- **Prompts** — Tested, copy-paste-ready prompts for everyday coding tasks
+
+> Prompts can generate inaccurate results. Always review output before using in production.
+
 ## Features
 
-- **Comprehensive Prompt Library**: Browse thousands of tested AI prompts
-- **Advanced Search & Filtering**: Find exactly what you need with powerful search
-- **Categories & Tags**: Organize prompts with intuitive categorization
-- **User Authentication**: Secure sign-up/sign-in with Supabase
-- **Content Management**: Full CRUD operations for prompts and content
-- **Free to use**: All features and prompts are free; no payments or subscriptions
-- **Background Jobs**: BullMQ and Redis for async operations (e.g. CSV → posts pipeline)
-- **Storage**: AWS S3, DigitalOcean Spaces, or local filesystem — configurable via DB settings
-- **Admin Dashboard**: Complete admin interface for content management
-- **Security-First**: CSRF protection, CSP, rate limiting, input sanitization, audit logging
-- **Responsive Design**: Shadcn UI and Tailwind CSS
+- **Searchable Library** — Full-text search across titles, descriptions, tags, and categories
+- **Copy-Paste Ready** — No modifications needed; prompts work out of the box
+- **Categories & Tags** — Hierarchical organization for quick discovery
+- **User Authentication** — Sign in with Google or email via Supabase Auth
+- **Personal Collections** — Save and organize your favorite prompts
+- **Community Contributions** — Share your own prompts with the community
+- **Content Moderation** — Draft/approval workflow to maintain quality
+- **Admin Dashboard** — Full content and user management interface
+- **Free to Use** — No payments, no subscriptions, no paywalls
+- **Background Automation** — CSV → posts pipeline via BullMQ + Redis
+- **Flexible Storage** — AWS S3, DigitalOcean Spaces, or local filesystem
 
 ## Tech Stack
 
-- **Framework**: Next.js 15 (App Router) with Turbopack, React 18
-- **Database**: PostgreSQL with Drizzle ORM (schema at `lib/db/schema.ts`, migrations in `drizzle/`)
-- **Authentication**: Supabase Auth (sessions; users mirrored to Drizzle `users` table)
-- **Styling**: Tailwind CSS + Shadcn UI
-- **Queue**: BullMQ with Redis (rate limiting and background jobs; in-memory fallback when Redis unavailable)
-- **Storage**: AWS S3, DigitalOcean Spaces, or LOCAL — selectable in DB `settings` table
-- **Security**: CSP (nonce-based), CSRF, rate limiting, sanitization, security headers, audit logs
+| Layer | Technology |
+|-------|-----------|
+| Framework | Next.js 15 (App Router, Turbopack), React 18 |
+| Database | PostgreSQL + Drizzle ORM |
+| Auth | Supabase Auth |
+| Styling | Tailwind CSS + Shadcn UI |
+| Queue | BullMQ + Redis (in-memory fallback) |
+| Storage | AWS S3 / DigitalOcean Spaces / Local |
+| Security | CSP nonces, CSRF tokens, rate limiting, audit logs |
 
-## Security Implementation
-
-This application implements security measures following industry best practices:
-
-### Content Security Policy (CSP)
-
-- **Dynamic nonce-based CSP**: Cryptographically secure nonces per request
-- **Environment-aware**: Strict in production; relaxed in development (e.g. `'unsafe-eval'` for HMR)
-- **Middleware-based**: Headers set in Next.js middleware; nonce via `x-nonce` header and `csp-nonce` cookie
-- **Violation reporting**: CSP reports sent to `/api/security/csp-report`
-
-### CSRF Protection
-
-- **Token-based**: Secure tokens for all state-changing operations; stored in cookies
-- **Server actions**: Wrapped with `withCSRFProtection()` from `lib/security/csp.ts`
-- **API routes**: Middleware validates CSRF for mutating calls (webhooks, upload, auth callback, CSP report excluded)
-
-### Rate Limiting
-
-- **Redis-backed**: Distributed limits with in-memory fallback
-- **Scoped**: Different limits for auth, uploads, and general API
-- **Stricter in production**
-
-### Other Security
-
-- **Input sanitization**: `lib/security/sanitize.ts` — `sanitizeInput()`, `sanitizeContent()`, `sanitizeTagSlug()` before DB writes
-- **Security headers**: HSTS, X-Frame-Options, etc.
-- **Audit logging**: Auth failures, rate limits, etc. logged to `logs` model
-
-## Development
+## Getting Started
 
 ### Prerequisites
 
-- Node.js 18+ (20+ recommended)
-- PostgreSQL
-- Redis (for rate limiting and BullMQ; optional in dev — in-memory fallback)
-- Supabase project
-- Storage: AWS S3 or DigitalOcean Spaces (optional; local storage available)
+- Node.js 20+
+- Supabase project (PostgreSQL + Auth)
+- Redis (optional in dev — in-memory fallback available)
+- AWS S3 or DigitalOcean Spaces (optional — local storage works too)
 
 ### Setup
 
 1. **Clone the repository**
 
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/chhayvoinvy/promptexify.git
    cd promptexify
    ```
 
@@ -95,103 +71,129 @@ This application implements security measures following industry best practices:
    npm install
    ```
 
-3. **Environment variables**
+3. **Configure environment variables**
 
    ```bash
    cp env.template .env.local
-   # Edit .env.local with your database, Supabase, Redis, and storage config
+   # Fill in your Supabase, database, Redis, and storage credentials
    ```
 
-4. **Database**
+4. **Set up the database**
 
    ```bash
-   npm run db:migrate   # Deploy migrations
-   npm run db:seed      # Optional: seed data
+   npm run db:migrate   # Apply migrations
+   npm run db:seed      # Optional: seed sample data
    ```
 
-5. **Run the dev server**
+5. **Start the development server**
 
    ```bash
    npm run dev
    ```
 
-   Open [http://localhost:3000](http://localhost:3000). For background jobs (e.g. content automation), start the worker in another terminal: `npm run worker`.
+   Open [http://localhost:3000](http://localhost:3000).
+
+   For content automation (background jobs), start the worker in a separate terminal:
+
+   ```bash
+   npm run worker
+   ```
 
 ### Environment Variables
 
-See `env.template` for required and optional variables, including:
+See `env.template` for the full list. Key variables:
 
-- PostgreSQL connection
-- Supabase URL and anon key
-- Redis URL (optional in dev)
-- S3/Spaces credentials if using cloud storage
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key |
+| `REDIS_URL` | Redis connection (optional in dev) |
+| `DATABASE_POOLER_MODE` | Set to `transaction` when using Supabase connection pooler |
 
-### Scripts
+## Scripts
 
 | Command | Description |
-|--------|-------------|
+|---------|-------------|
 | `npm run dev` | Start dev server (Turbopack) |
-| `npm run build` | Build Next.js application |
+| `npm run build` | Build for production (runs DB migrations first) |
 | `npm start` | Start production server |
-| `npm run db:migrate` | Run pending migrations |
-| `npm run db:push` | Push schema without migrations |
-| `npm run db:studio` | Open Drizzle Studio |
-| `npm run db:seed` | Seed database |
-| `npm run db:reset` | Reset database |
-| `npm run worker` | Start BullMQ worker (content automation, etc.) |
-| `npm run content:generate` | Run content automation (CSV → posts) |
+| `npm run db:migrate` | Apply pending migrations |
+| `npm run db:generate` | Generate migration from schema changes |
+| `npm run db:push` | Push schema directly (dev only) |
+| `npm run db:studio` | Open Drizzle Studio GUI |
+| `npm run db:seed` | Seed the database |
+| `npm run worker` | Start BullMQ worker |
+| `npm run content:generate` | Run CSV → posts automation |
 | `npm run lint` | Run ESLint |
 | `npm run lint:fix` | Auto-fix ESLint issues |
 | `npm run lint:format` | Format with Prettier |
-| `npm run csp:hash` | Generate CSP hash for inline script |
-| `npm run csp:analyze` | Analyze a CSP violation report |
-
-### Testing
-
-There is no test runner. The only test file is `lib/security/sanitize.test.ts`. Run it with:
-
-```bash
-npx tsx lib/security/sanitize.test.ts
-```
 
 ## Architecture
 
 ### Request Flow
 
 ```
-Request → Middleware (Supabase session, CSP nonce, CSRF check, rate limit) → Route
+Request
+  → Middleware (Supabase session, CSP nonce, CSRF validation, rate limiting)
+  → Route Handler / Server Action
+  → Drizzle ORM → PostgreSQL
 ```
 
 ### Route Groups
 
 ```
 app/
-  (auth)/           # signin, signup
-  (main)/           # home, directory, entry/[id]
-    @modal/         # Parallel route: entry preview modal
-  (protected)/
-    dashboard/      # posts, bookmarks, favorites, billing, settings
-  api/              # posts, admin, upload, webhooks, csrf, analytics, etc.
+  (auth)/           # Public auth pages: signin, signup
+  (main)/           # Public site: home, directory, entry/[id]
+    @modal/         # Parallel route: post preview modal
+  (protected)/      # Authenticated routes
+    dashboard/      # Posts, stars, settings
+  api/              # REST endpoints: posts, admin, upload, webhooks, etc.
 ```
 
 ### Key Directories
 
 ```
-├── app/                  # Next.js App Router
+├── app/                  # Next.js App Router pages and layouts
 ├── components/           # React components
-├── lib/
-│   ├── db/               # Drizzle ORM: schema.ts, index.ts (singleton db client)
-│   ├── security/         # CSP, CSRF, sanitize, audit, etc.
-│   ├── auth.ts           # getCurrentUser, requireAuth, requireAdmin
-│   ├── cache.ts          # unstable_cache + Redis/memory
-│   └── query.ts          # PostQueries, MetadataQueries
-├── drizzle/              # SQL migrations + relations.ts
 ├── actions/              # Server actions (CSRF-protected)
+├── lib/
+│   ├── db/               # Drizzle ORM: schema.ts, migrations, db client
+│   ├── security/         # CSP, CSRF, sanitize, audit logging
+│   ├── auth.ts           # getCurrentUser, requireAuth, requireAdmin
+│   ├── cache.ts          # unstable_cache + Redis/memory fallback
+│   └── query.ts          # PostQueries, MetadataQueries
+├── drizzle/              # SQL migrations + snapshots
 ├── middleware.ts         # Session, CSP, CSRF, rate limiting
 └── scripts/
-    └── worker.ts         # BullMQ worker (e.g. process-csv → posts)
+    ├── deploy-db.ts      # Production DB deploy (migrations + RLS + indexes)
+    └── worker.ts         # BullMQ worker (CSV → posts pipeline)
 ```
 
-### Content Automation
+### Database & Deployment
 
-The BullMQ worker processes jobs from the ContentAutomation queue (e.g. CSV rows → posts via `AutomationService.executeFromJsonInput()`). Run `npm run worker` when using features that depend on background jobs.
+`npm run build` automatically runs `scripts/deploy-db.ts` before the Next.js build:
+
+1. Runs all pending Drizzle migrations
+2. Applies RLS helper functions
+3. Applies performance indexes and search vector triggers
+
+Schema changes deploy automatically on every production build — no manual migration step needed.
+
+## Security
+
+- **CSP** — Per-request nonces via middleware; passed to components via `x-nonce` header and `csp-nonce` cookie
+- **CSRF** — Token validated by middleware for all mutating calls; server actions wrapped with `withCSRFProtection()`
+- **Rate Limiting** — Redis-backed with in-memory fallback; scoped limits per route type
+- **Input Sanitization** — Applied before all DB writes via `lib/security/sanitize.ts`
+- **Audit Logging** — Security events logged to the `logs` table
+- **Row-Level Security** — Postgres RLS policies enforced at the database level
+
+## Contributing
+
+Contributions are welcome! Open an issue to discuss ideas or submit a pull request.
+
+## License
+
+MIT
