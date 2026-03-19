@@ -25,6 +25,7 @@ import { MediaUpload } from "@/components/media-upload";
 import { useAuth } from "@/hooks/use-auth";
 import { useCSRFForm } from "@/hooks/use-csrf";
 import { updatePostAction } from "@/actions";
+import { TurnstileWidget } from "@/components/turnstile-widget";
 import { toast } from "sonner";
 
 // Force dynamic rendering for this page
@@ -97,6 +98,7 @@ export default function EditPostPage() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [pendingTags, setPendingTags] = useState<string[]>([]);
   const [maxTagsPerPost, setMaxTagsPerPost] = useState<number>(15);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
 
   // Redirect if not authenticated or not authorized
   useEffect(() => {
@@ -248,6 +250,11 @@ export default function EditPostPage() {
       return;
     }
 
+    if (process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileToken) {
+      toast.error("Please complete the CAPTCHA verification.");
+      return;
+    }
+
     if (isUploadingMedia) {
       toast.error("Please wait for the media to finish uploading.");
       return;
@@ -348,11 +355,12 @@ export default function EditPostPage() {
 
       // Create secure form data with CSRF protection
       const secureFormData = createFormDataWithCSRF();
-      
+
       // Add all form data to the secure form data
       for (const [key, value] of formData.entries()) {
         secureFormData.set(key, value);
       }
+      if (turnstileToken) secureFormData.set("cf-turnstile-response", turnstileToken);
 
       // Update the post first
       await updatePostAction(secureFormData);
@@ -767,6 +775,14 @@ export default function EditPostPage() {
             <input type="hidden" name="previewPath" value={previewPath || ""} />
             <input type="hidden" name="previewVideoPath" value={previewVideoPath || ""} />
             <input type="hidden" name="blurData" value={blurData || ""} />
+
+            <TurnstileWidget
+              onSuccess={setTurnstileToken}
+              onExpire={() => setTurnstileToken(null)}
+              onError={() => setTurnstileToken(null)}
+              size="normal"
+              className="flex justify-end"
+            />
 
             <div className="flex justify-end gap-4">
               <Button

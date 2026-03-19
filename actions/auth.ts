@@ -16,6 +16,7 @@ import {
 import { headers } from "next/headers";
 import { withCSRFProtection, handleSecureActionError } from "@/lib/security/csp";
 import { rateLimits } from "@/lib/security/limits";
+import { verifyTurnstile } from "@/lib/security/turnstile";
 
 /** Extract client IP from server action request headers */
 async function getActionClientIP(): Promise<string> {
@@ -71,6 +72,14 @@ export const magicLinkAction = withCSRFProtection(
   async (formData: FormData) => {
     try {
       const ip = await getActionClientIP();
+
+      // Verify Turnstile CAPTCHA (skipped if TURNSTILE_SECRET_KEY is not set)
+      const turnstileToken = formData.get("cf-turnstile-response") as string;
+      const captchaOk = await verifyTurnstile(turnstileToken, ip);
+      if (!captchaOk) {
+        return { error: "CAPTCHA verification failed. Please try again." };
+      }
+
       // Rate limit by IP — prevents email spam / Supabase OTP quota exhaustion
       const rl = await rateLimits.auth(`auth:magic:${ip}`);
       if (!rl.allowed) {

@@ -15,6 +15,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { revalidateCache, CACHE_TAGS } from "@/lib/cache";
 import { withCSRFProtection } from "@/lib/security/csp";
+import { verifyTurnstile } from "@/lib/security/turnstile";
+import { headers } from "next/headers";
 import { getAllowUserPosts, getAllowUserUploads } from "@/lib/settings";
 
 import {
@@ -28,6 +30,17 @@ import { createPostFormSchema, updatePostFormSchema } from "@/lib/schemas";
 export const createPostAction = withCSRFProtection(
   async (formData: FormData) => {
     try {
+      // Verify Turnstile CAPTCHA
+      const hdrs = await headers();
+      const ip =
+        hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+        hdrs.get("x-real-ip") ||
+        undefined;
+      const turnstileToken = formData.get("cf-turnstile-response") as string;
+      if (!await verifyTurnstile(turnstileToken, ip)) {
+        return { error: "CAPTCHA verification failed. Please try again." };
+      }
+
       // Get the current user
       const currentUser = await getCurrentUser();
       if (!currentUser?.userData) {
@@ -256,6 +269,17 @@ export const createPostAction = withCSRFProtection(
 export const updatePostAction = withCSRFProtection(
   async (formData: FormData) => {
     try {
+      // Verify Turnstile CAPTCHA
+      const hdrs = await headers();
+      const ip =
+        hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+        hdrs.get("x-real-ip") ||
+        undefined;
+      const turnstileToken = formData.get("cf-turnstile-response") as string;
+      if (!await verifyTurnstile(turnstileToken, ip)) {
+        return { error: "CAPTCHA verification failed. Please try again." };
+      }
+
       // Get the current user
       const currentUser = await getCurrentUser();
       if (!currentUser?.userData) {

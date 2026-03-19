@@ -3,6 +3,8 @@
 import {
   IconDotsVertical,
   IconUserCircle,
+  IconStar,
+  PlusCircle,
 } from "@/components/ui/icons";
 import Link from "next/link";
 
@@ -125,6 +127,18 @@ export function NavUser({ user }: { user: User }) {
             </DropdownMenuLabel>
             <DropdownMenuSeparator className="px-2" />
             <DropdownMenuGroup>
+              <DropdownMenuItem asChild>
+                <Link href="/stars">
+                  <IconStar />
+                  Stars
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/posts/new">
+                  <PlusCircle />
+                  Contribute
+                </Link>
+              </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link href="/account">
                   <IconUserCircle />

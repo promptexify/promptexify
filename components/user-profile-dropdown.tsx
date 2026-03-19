@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Settings, UserIcon, IconDashboard } from "@/components/ui/icons";
+import { Settings, UserIcon, IconDashboard, IconStar, PlusCircle } from "@/components/ui/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,6 +60,18 @@ export function UserProfileDropdown({ user }: UserProfileDropdownProps) {
             <Link href="/dashboard" className="flex items-center">
               <IconDashboard className="mr-2 h-4 w-4" />
               <span>Dashboard</span>
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/stars" className="flex items-center">
+              <IconStar className="mr-2 h-4 w-4" />
+              <span>Stars</span>
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/posts/new" className="flex items-center">
+              <PlusCircle className="mr-2 h-4 w-4" />
+              <span>Contribute</span>
             </Link>
           </DropdownMenuItem>
             <DropdownMenuItem asChild>

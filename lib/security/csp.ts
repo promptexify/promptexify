@@ -520,6 +520,8 @@ export class SecurityHeaders {
       "https://securetoken.googleapis.com",
       // Vercel Analytics
       "https://va.vercel-scripts.com",
+      // Cloudflare Turnstile
+      "https://challenges.cloudflare.com",
     ];
 
 
@@ -670,6 +672,8 @@ export class SecurityHeaders {
       // Vercel Analytics
       "https://vitals.vercel-insights.com",
       "https://vitals.vercel-analytics.com", // Alternative domain for Vercel Analytics
+      // Cloudflare Turnstile
+      "https://challenges.cloudflare.com",
     ];
 
     if (isDevelopment) {
@@ -695,6 +699,8 @@ export class SecurityHeaders {
       // Google AdSense (if using iframe ads)
       "https://googleads.g.doubleclick.net",
       "https://tpc.googlesyndication.com",
+      // Cloudflare Turnstile (renders in an iframe)
+      "https://challenges.cloudflare.com",
     ];
 
     return `frame-src ${frameSources.join(" ")}`;

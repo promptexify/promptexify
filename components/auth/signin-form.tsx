@@ -16,6 +16,7 @@ import { signInWithOAuth } from "@/lib/auth";
 import { magicLinkAction } from "@/actions/auth";
 import { magicLinkSchema, type MagicLinkData } from "@/lib/schemas";
 import { useCSRFForm } from "@/hooks/use-csrf";
+import { TurnstileWidget } from "@/components/turnstile-widget";
 
 const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" {...props}>
@@ -42,6 +43,7 @@ export function SignInForm() {
   const [isMagicLinkPending, startMagicLinkTransition] = useTransition();
   const [isGooglePending, startGoogleTransition] = useTransition();
   const [emailSent, setEmailSent] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const router = useRouter();
   const { createFormDataWithCSRF, isReady } = useCSRFForm();
 
@@ -58,11 +60,17 @@ export function SignInForm() {
       return;
     }
 
+    if (process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileToken) {
+      toast.error("Please complete the CAPTCHA verification.");
+      return;
+    }
+
     startMagicLinkTransition(async () => {
       try {
         // Create form data with CSRF protection
         const formData = createFormDataWithCSRF();
         formData.set("email", data.email);
+        if (turnstileToken) formData.set("cf-turnstile-response", turnstileToken);
 
         // Call server action
         const result = await magicLinkAction(formData);
@@ -159,7 +167,7 @@ export function SignInForm() {
         </div>
         <div className="relative flex justify-center text-xs uppercase">
           <span className="bg-card px-5 text-muted-foreground">
-            Or continue with email
+            Or 
           </span>
         </div>
       </div>
@@ -179,6 +187,12 @@ export function SignInForm() {
             required
             disabled={isMagicLinkPending || isGooglePending || !isReady}
             description="We'll send you a secure link to sign in"
+          />
+
+          <TurnstileWidget
+            onSuccess={setTurnstileToken}
+            onExpire={() => setTurnstileToken(null)}
+            onError={() => setTurnstileToken(null)}
           />
 
           <Button
