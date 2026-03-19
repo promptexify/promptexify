@@ -98,6 +98,7 @@ export default function EditPostPage() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [pendingTags, setPendingTags] = useState<string[]>([]);
   const [maxTagsPerPost, setMaxTagsPerPost] = useState<number>(15);
+  const [allowUserUploads, setAllowUserUploads] = useState<boolean>(true);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
 
   // Redirect if not authenticated or not authorized
@@ -229,6 +230,9 @@ export default function EditPostPage() {
           const data = await res.json();
           if (typeof data.maxTagsPerPost === "number") {
             setMaxTagsPerPost(data.maxTagsPerPost);
+          }
+          if (typeof data.allowUserUploads === "boolean") {
+            setAllowUserUploads(data.allowUserUploads);
           }
         }
       } catch (err) {
@@ -626,22 +630,31 @@ export default function EditPostPage() {
                 <CardTitle>Media & Categorization</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 grid grid-cols-1 md:grid-cols-3 gap-8">
-                <div className="space-y-2">
-                  <Label htmlFor="featured-media">Featured Media</Label>
-                  <MediaUpload
-                    onMediaUploaded={handleMediaUploaded}
-                    onUploadStateChange={handleUploadStateChange}
-                    currentUploadPath={uploadPath || undefined}
-                    currentUploadFileType={uploadFileType || undefined}
-                    currentUploadMediaId={uploadMediaId || undefined}
-                    currentPreviewPath={previewPath || undefined}
-                    currentPreviewVideoPath={previewVideoPath || undefined}
-                    title={postTitle || "untitled-post"}
-                  />
-                  <p className="text-sm text-muted-foreground">
-                    Upload an image or video for this post.
-                  </p>
-                </div>
+                {(user.userData?.role === "ADMIN" || allowUserUploads) ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="featured-media">Featured Media</Label>
+                    <MediaUpload
+                      onMediaUploaded={handleMediaUploaded}
+                      onUploadStateChange={handleUploadStateChange}
+                      currentUploadPath={uploadPath || undefined}
+                      currentUploadFileType={uploadFileType || undefined}
+                      currentUploadMediaId={uploadMediaId || undefined}
+                      currentPreviewPath={previewPath || undefined}
+                      currentPreviewVideoPath={previewVideoPath || undefined}
+                      title={postTitle || "untitled-post"}
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      Upload an image or video for this post.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label>Featured Media</Label>
+                    <div className="p-4 rounded-lg border border-dashed text-sm text-muted-foreground">
+                      Media uploads are not available for user submissions at this time.
+                    </div>
+                  </div>
+                )}
                 <div className="flex gap-4 flex-col col-span-2">
                   <div className="flex gap-4">
                     <div className="space-y-2">
