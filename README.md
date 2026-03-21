@@ -78,7 +78,7 @@ Promptexify is a community-driven prompt marketplace for vibe coders — develop
 4. **Set up the database**
 
    ```bash
-   npm run db:migrate   # Apply migrations
+   npm run db:deploy    # Apply RLS functions + migrations
    npm run db:seed      # Optional: seed sample data
    ```
 
@@ -114,9 +114,11 @@ See `env.template` for the full list. Key variables:
 | Command | Description |
 |---------|-------------|
 | `npm run dev` | Start dev server (Turbopack) |
-| `npm run build` | Build for production (runs DB migrations first) |
+| `npm run build` | Build for production (runs DB deploy first) |
 | `npm start` | Start production server |
-| `npm run db:migrate` | Apply pending migrations |
+| `npm run db:deploy` | Full deploy: RLS functions + Drizzle migrations |
+| `npm run db:migrate` | Apply pending migrations only |
+| `npm run db:rls` | Apply RLS helper functions only |
 | `npm run db:generate` | Generate migration from schema changes |
 | `npm run db:push` | Push schema directly (dev only) |
 | `npm run db:studio` | Open Drizzle Studio GUI |
@@ -161,7 +163,7 @@ app/
 │   ├── cache.ts          # unstable_cache + Redis/memory fallback
 │   └── query.ts          # PostQueries, MetadataQueries
 ├── drizzle/              # SQL migrations + snapshots
-├── middleware.ts         # Session, CSP, CSRF, rate limiting
+├── proxy.ts              # Next.js middleware: session, CSP, CSRF, rate limiting
 └── scripts/
     └── deploy-db.ts      # Production DB deploy (migrations + RLS + indexes)
 ```
@@ -185,11 +187,18 @@ Schema changes deploy automatically on every production build — no manual migr
 - **Input Sanitization** — Applied before all DB writes via `lib/security/sanitize.ts`
 - **Audit Logging** — Security events logged to the `logs` table
 - **Row-Level Security** — Postgres RLS policies enforced at the database level
-- **Supabase Vault** — Sensitive credentials encrypted at rest via `pgsodium`
 
 ## Contributing
 
 Contributions are welcome! Open an issue to discuss ideas or submit a pull request.
+
+## Disclaimer
+
+This project is open source for learning purposes only. Unauthorized testing, attacking, or exploiting [promptexify.com](https://promptexify.com) or any production instance you do not own is **illegal** and strictly prohibited.
+
+This codebase was built as a real-world web application to study modern security practices in a hands-on way. You are welcome to clone it, run it locally, and explore its security architecture on your own infrastructure.
+
+If you discover a vulnerability, please open an issue so we can learn from it together.
 
 ## License
 

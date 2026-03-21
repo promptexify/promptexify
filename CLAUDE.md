@@ -27,9 +27,6 @@ npm run lint             # Run ESLint
 npm run lint:fix         # Auto-fix ESLint issues
 npm run lint:format      # Format with Prettier
 
-# Background worker
-npm run worker           # Start BullMQ worker process
-
 # CSP utilities
 npm run csp:hash         # Generate a CSP hash for an inline script
 npm run csp:analyze      # Analyze a CSP violation report
@@ -40,19 +37,13 @@ No test runner is configured; the only test file is `lib/security/sanitize.test.
 npx tsx lib/security/sanitize.test.ts
 ```
 
-Additional commands:
-```bash
-npm run content:generate  # Execute content automation (CSV → posts pipeline)
-```
-
 ## Architecture
 
 ### Tech Stack
 - **Next.js 15** App Router with Turbopack, React 18
 - **PostgreSQL** via **Drizzle ORM** (schema in `lib/db/schema.ts`, migrations in `drizzle/`)
 - **Supabase Auth** — handles sessions; user records are mirrored into Drizzle `users` table via `upsertUserInDatabase`
-- **Redis / BullMQ** — rate limiting and background job queues; falls back to in-memory when Redis is unavailable
-- **AWS S3 / DigitalOcean Spaces** — media uploads; storage provider configurable in DB `settings` table
+- **Redis** — rate limiting; falls back to in-memory when Redis is unavailable
 - **Cloudflare Turnstile** — CAPTCHA on auth and post submission pages; gracefully disabled when env vars are absent
 
 ### Route Groups
@@ -67,7 +58,7 @@ app/
     posts/         # Post management: list, new, edit/[id]
     stars/         # User's starred posts
     tags/          # Tag management
-  api/             # API routes: posts, admin, upload, webhooks, csrf, analytics, etc.
+  api/             # API routes: posts, admin, webhooks, csrf, analytics, etc.
 ```
 
 ### Data Flow
@@ -80,12 +71,12 @@ app/
 
 4. **Server Actions**: All in `actions/`. Actions are wrapped with `withCSRFProtection()` from `lib/security/csp.ts`. Input is sanitized via `lib/security/sanitize.ts` before DB writes.
 
-5. **Middleware** (`middleware.ts`): Runs on every request (except static/image assets). Handles: Supabase session refresh → CSP nonce injection (`x-nonce` header + `csp-nonce` cookie) → CSRF validation for non-GET API calls → Redis rate limiting.
+5. **Middleware** (`proxy.ts`): Runs on every request (except static/image assets). Handles: Supabase session refresh → CSP nonce injection (`x-nonce` header + `csp-nonce` cookie) → CSRF validation for non-GET API calls → Redis rate limiting.
 
 ### Security Architecture
 
 - **CSP**: Nonce generated per request via `CSPNonce.generate()`, passed to Server Components via `x-nonce` header, to Client Components via `csp-nonce` cookie. `https://challenges.cloudflare.com` is allowed in `script-src`, `frame-src`, and `connect-src` for Turnstile.
-- **CSRF**: Token stored in cookie, validated in middleware for all mutating API calls. Endpoints that skip CSRF: `/api/webhooks/`, `/api/upload/`, `/api/auth/`, `/auth/callback`, `/api/security/csp-report`.
+- **CSRF**: Token stored in cookie, validated in middleware for all mutating API calls. Endpoints that skip CSRF: `/api/webhooks/`, `/api/auth/`, `/auth/callback`, `/api/security/csp-report`.
 - **Rate limiting**: `lib/edge.ts` — Redis-backed, falls back to in-memory. Applied globally to `/api/*` routes in middleware.
 - **Input sanitization**: `lib/security/sanitize.ts` — use `sanitizeInput()` for text fields, `sanitizeContent()` for HTML content, `sanitizeTagSlug()` for slugs.
 - **Audit logging**: `lib/security/audit.ts` `SecurityEvents` — logs auth failures, rate limit hits, etc. to the `logs` table.
@@ -101,7 +92,7 @@ app/
 - **Deployment**: Always use `npm run db:deploy` (runs `scripts/deploy-db.ts`) which applies RLS helper functions first, then runs Drizzle migrations. Never use `drizzle-kit push` on a schema with RLS policies — it crashes with a `TypeError` in drizzle-kit 0.31.x.
 - **Fresh DB setup**: If migrating to a new Supabase project, apply consolidated DDL via the Supabase MCP `apply_migration` tool (derived from `drizzle/meta/<latest>_snapshot.json`), then seed `drizzle.__drizzle_migrations` with the SHA256 hashes of all migration files using `readMigrationFiles()` from `drizzle-orm/migrator`.
 - **Required extensions**: `pg_trgm` and `btree_gin` must exist before schema migration (`CREATE EXTENSION IF NOT EXISTS pg_trgm; CREATE EXTENSION IF NOT EXISTS btree_gin;`).
-- **RLS helper function gotcha**: `current_user_is_admin()` must use `LANGUAGE plpgsql` (not `sql`) so the reference to `public.users` is validated at runtime, not function-creation time.
+- **RLS helper function gotcha**: `current_user_is_admin()` uses `LANGUAGE sql` with `SECURITY DEFINER` and `SET search_path = public`. Both helper functions are defined in `scripts/rls-functions.sql` and applied via `npm run db:deploy`.
 
 ### Key Patterns
 
@@ -113,6 +104,4 @@ app/
 - **Client mutations**: Use `useTransition()` for async server actions in Client Components (not `useFormStatus`). Multiple `useTransition` calls are fine for parallel independent ops.
 - **Validation**: Zod schemas live in `lib/schemas.ts`. Slugs enforce no leading/trailing/consecutive hyphens via regex.
 - **Performance**: Use `React.cache()` for request-level memoization in Server Components. Use `Promise.allSettled()` for parallel fetches that should not block on failure. `PerformanceMonitor` (in `lib/`) measures async operations; slow DB queries (>500ms) are logged by `DatabasePerformanceMonitor`.
-- **Worker process**: The BullMQ worker (`scripts/worker.ts`) processes `process-csv` jobs from the `ContentAutomation` queue, transforming CSV rows → `ContentFile` objects → posts via `AutomationService.executeFromJsonInput()`. Requires Redis.
-- **Storage backends**: S3, DigitalOcean Spaces, or LOCAL filesystem — selected via DB `settings` table, cached for 5 min. Upload results include `blurDataUrl` for blur placeholders.
 - **Stars**: Users can star posts. `actions/stars.ts` provides `toggleStarAction`, `getUserStarsAction`, `checkStarStatusAction`. Client button: `components/star-button.tsx`. Stars page: `app/(protected)/stars/`.
