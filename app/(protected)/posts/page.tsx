@@ -219,60 +219,41 @@ async function PostsManagementContent({
     if (filters.type === "premium") isPremium = true;
     else if (filters.type === "free") isPremium = false;
 
-    // Map sortBy to database sorting options
+    const isFeatured: boolean | undefined =
+      isAdmin && filters.featured === "featured" ? true
+      : isAdmin && filters.featured && filters.featured !== "all" ? false
+      : undefined;
+
+    const statusFilter =
+      filters.status && filters.status !== "all"
+        ? (filters.status as "published" | "pending" | "draft" | "rejected")
+        : undefined;
+
     let sortBy: "latest" | "popular" | "trending" = "latest";
     if (filters.sortBy === "favorites") sortBy = "popular";
-    else if (filters.sortBy === "oldest") sortBy = "latest"; // Will be handled differently
 
-    // Use optimized paginated query instead of loading all posts
     const postsResult = await Queries.posts.getPaginated({
       page: currentPage,
       limit: validPageSize,
       userId: user.id,
-      authorId: isAdmin ? undefined : user.id, // Users see only their posts
+      authorId: isAdmin ? undefined : user.id,
       categoryId,
       isPremium,
+      isFeatured,
+      status: statusFilter,
       sortBy,
-      // Always include unpublished — for non-admins the authorId filter above
-      // already scopes results to their own posts, so pending/draft/rejected
-      // submissions are visible only to their author.
       includeUnpublished: true,
+      skipRelated: true, // management table shows no tags/stars — skip 3 round-trips
     });
 
-    // Apply client-side filters that can't be done at database level
-    let filteredPosts = postsResult.data;
+    const filteredPosts = filters.sortBy === "oldest"
+      ? [...postsResult.data].sort(
+          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        )
+      : filters.sortBy === "title"
+      ? [...postsResult.data].sort((a, b) => a.title.localeCompare(b.title))
+      : postsResult.data;
 
-    // Status filtering (some status logic requires client-side filtering)
-    if (filters.status && filters.status !== "all") {
-      filteredPosts = filteredPosts.filter((post) => {
-        switch (filters.status) {
-          case "published": return post.isPublished;
-          case "pending": return post.status === "PENDING_APPROVAL";
-          case "draft": return post.status === "DRAFT";
-          case "rejected": return post.status === "REJECTED";
-          default: return true;
-        }
-      });
-    }
-
-    // Featured filtering for admins (client-side)
-    if (isAdmin && filters.featured && filters.featured !== "all") {
-      filteredPosts = filteredPosts.filter((post) =>
-        filters.featured === "featured" ? post.isFeatured : !post.isFeatured
-      );
-    }
-
-    // Apply client-side sorting for cases not handled by database
-    if (filters.sortBy === "oldest") {
-      filteredPosts.sort(
-        (a, b) =>
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      );
-    } else if (filters.sortBy === "title") {
-      filteredPosts.sort((a, b) => a.title.localeCompare(b.title));
-    }
-
-    // Use database pagination data
     const totalCount = postsResult.pagination.totalCount;
     const totalPages = postsResult.pagination.totalPages;
     const hasNextPage = postsResult.pagination.hasNextPage;

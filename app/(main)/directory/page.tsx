@@ -5,7 +5,7 @@ import { PostMasonrySkeleton } from "@/components/post-masonry-skeleton";
 import { DirectoryClientWrapper } from "@/components/directory-client-wrapper";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Queries } from "@/lib/query";
-import { getSettingsAction } from "@/actions/settings";
+import { getPostsPageSize } from "@/lib/settings";
 import { SafeAsync } from "@/components/ui/safe-async";
 import { Container } from "@/components/ui/container";
 import { getMetadata } from "@/config/seo";
@@ -57,38 +57,17 @@ async function DirectoryContent({
   searchParams: DirectoryPageProps["searchParams"];
 }) {
   try {
-    // Handle async operations with individual error handling
-    let categories: Awaited<ReturnType<typeof getAllCategories>> = [];
-    let currentUser = null;
-    let settingsResult = null;
+    // Fetch all independent setup data in parallel before resolving search params
+    const [categoriesResult, userResult, pageSizeResult, params] = await Promise.all([
+      getAllCategories().catch((e) => { console.warn("Failed to load categories:", e); return [] as Awaited<ReturnType<typeof getAllCategories>>; }),
+      getCurrentUser().catch((e) => { console.warn("Failed to get current user:", e); return null; }),
+      getPostsPageSize().catch(() => 12),
+      searchParams,
+    ]);
 
-    try {
-      categories = await getAllCategories();
-    } catch (error) {
-      console.warn("Failed to load categories:", error);
-      categories = []; // Fallback to empty array
-    }
-
-    try {
-      currentUser = await getCurrentUser();
-    } catch (error) {
-      console.warn("Failed to get current user:", error);
-      // currentUser remains null for anonymous access
-    }
-
-    try {
-      settingsResult = await getSettingsAction();
-    } catch (error) {
-      console.warn("Failed to get settings:", error);
-      // settingsResult remains null, will use defaults
-    }
-
-    const params = await searchParams;
-
-    const postsPageSize =
-      settingsResult?.success && settingsResult.data?.postsPageSize
-        ? settingsResult.data.postsPageSize
-        : 12;
+    const categories = categoriesResult;
+    const currentUser = userResult;
+    const postsPageSize = pageSizeResult;
 
     const {
       q: qParam,

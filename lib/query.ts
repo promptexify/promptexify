@@ -119,7 +119,10 @@ type PostGetPaginatedParams = PaginationParams & {
   authorId?: string;
   isPremium?: boolean;
   isFeatured?: boolean;
+  status?: "published" | "pending" | "draft" | "rejected";
   userId?: string;
+  /** Skip tags, star counts, and isStarred queries (saves 3 round-trips when that data isn't needed). */
+  skipRelated?: boolean;
 };
 
 // Placeholder exports retained for API compatibility; shapes are defined inline per query
@@ -182,8 +185,10 @@ export class PostQueries {
       authorId,
       isPremium,
       isFeatured,
+      status,
       userId,
       sortBy = "latest",
+      skipRelated = false,
     } = params;
     const skip = (page - 1) * limit;
 
@@ -192,6 +197,10 @@ export class PostQueries {
     if (authorId) conditions.push(eq(posts.authorId, authorId));
     if (isPremium !== undefined) conditions.push(eq(posts.isPremium, isPremium));
     if (isFeatured !== undefined) conditions.push(eq(posts.isFeatured, isFeatured));
+    if (status === "published") conditions.push(eq(posts.isPublished, true));
+    else if (status === "pending") conditions.push(eq(posts.status, "PENDING_APPROVAL"));
+    else if (status === "draft") conditions.push(eq(posts.status, "DRAFT"));
+    else if (status === "rejected") conditions.push(eq(posts.status, "REJECTED"));
     if (categoryId) {
       const subIds = db.select({ id: categories.id }).from(categories).where(eq(categories.parentId, categoryId));
       const catCond = or(eq(posts.categoryId, categoryId), inArray(posts.categoryId, subIds));
@@ -199,53 +208,58 @@ export class PostQueries {
     }
     const whereClause = and(...conditions);
 
-    // Aggregated stars subquery — avoids correlated subquery per row for popular/trending sorts
-    const starCounts = db
-      .select({ postId: stars.postId, cnt: sql<number>`count(*)::int`.as("cnt") })
-      .from(stars)
-      .groupBy(stars.postId)
-      .as("star_counts");
+    // Only build and join the star-count aggregate when sorting by popularity/trending.
+    // For "latest" (the default), this avoids a full GROUP BY on the entire stars table.
+    const needsStarSort = sortBy === "popular" || sortBy === "trending";
+    const starCounts = needsStarSort
+      ? db
+          .select({ postId: stars.postId, cnt: sql<number>`count(*)::int`.as("cnt") })
+          .from(stars)
+          .groupBy(stars.postId)
+          .as("star_counts")
+      : null;
+    const orderByClause = needsStarSort && starCounts
+      ? [desc(sql`coalesce(${starCounts.cnt}, 0)`), desc(posts.createdAt)]
+      : [desc(posts.createdAt)];
 
     const endTimer = DatabaseMetrics.startQuery();
     try {
-      const orderByClause =
-        sortBy === "popular"
-          ? [desc(sql`coalesce(${starCounts.cnt}, 0)`), desc(posts.createdAt)]
-          : sortBy === "trending"
-            ? [desc(sql`coalesce(${starCounts.cnt}, 0)`), desc(posts.createdAt)]
-            : [desc(posts.createdAt)];
+      const selectFields = {
+        postId: posts.id,
+        title: posts.title,
+        slug: posts.slug,
+        description: posts.description,
+        isPremium: posts.isPremium,
+        isFeatured: posts.isFeatured,
+        isPublished: posts.isPublished,
+        status: posts.status,
+        authorId: posts.authorId,
+        categoryId: posts.categoryId,
+        createdAt: posts.createdAt,
+        updatedAt: posts.updatedAt,
+        authorUserId: users.id,
+        authorName: users.name,
+        authorAvatar: users.avatar,
+        authorEmail: users.email,
+        catId: categories.id,
+        catName: categories.name,
+        catSlug: categories.slug,
+        parentId: parentCategory.id,
+        parentName: parentCategory.name,
+        parentSlug: parentCategory.slug,
+      };
+
+      const baseQuery = db
+        .select(selectFields)
+        .from(posts)
+        .leftJoin(users, eq(posts.authorId, users.id))
+        .leftJoin(categories, eq(posts.categoryId, categories.id))
+        .leftJoin(parentCategory, eq(categories.parentId, parentCategory.id))
+        .$dynamic();
+      if (starCounts) baseQuery.leftJoin(starCounts, eq(posts.id, starCounts.postId));
 
       const [rows, countResult] = await Promise.all([
-        db
-          .select({
-            postId: posts.id,
-            title: posts.title,
-            slug: posts.slug,
-            description: posts.description,
-            isPremium: posts.isPremium,
-            isFeatured: posts.isFeatured,
-            isPublished: posts.isPublished,
-            status: posts.status,
-            authorId: posts.authorId,
-            categoryId: posts.categoryId,
-            createdAt: posts.createdAt,
-            updatedAt: posts.updatedAt,
-            authorUserId: users.id,
-            authorName: users.name,
-            authorAvatar: users.avatar,
-            authorEmail: users.email,
-            catId: categories.id,
-            catName: categories.name,
-            catSlug: categories.slug,
-            parentId: parentCategory.id,
-            parentName: parentCategory.name,
-            parentSlug: parentCategory.slug,
-          })
-          .from(posts)
-          .leftJoin(users, eq(posts.authorId, users.id))
-          .leftJoin(categories, eq(posts.categoryId, categories.id))
-          .leftJoin(parentCategory, eq(categories.parentId, parentCategory.id))
-          .leftJoin(starCounts, eq(posts.id, starCounts.postId))
+        baseQuery
           .where(whereClause)
           .orderBy(...orderByClause)
           .limit(limit)
@@ -260,15 +274,23 @@ export class PostQueries {
       const totalCount = Number(countResult[0]?.count ?? 0);
 
       const postIds = rows.map((r) => r.postId);
-      const [tagsMap, counts] = await Promise.all([
-        getTagsForPostIds(postIds),
-        getStarCounts(postIds),
-      ]);
 
-      let starSet: Set<string> = new Set();
-      if (userId && postIds.length > 0) {
-        const userStars = await db.select({ postId: stars.postId }).from(stars).where(and(eq(stars.userId, userId), inArray(stars.postId, postIds)));
-        starSet = new Set(userStars.map((s) => s.postId));
+      // skipRelated: skip tags, star counts, and isStarred queries when the
+      // caller doesn't need them (e.g. management tables). Saves 3 round-trips.
+      let tagsMap = new Map<string, PostListTag[]>();
+      let counts = new Map<string, number>();
+      let starSet = new Set<string>();
+
+      if (!skipRelated) {
+        [tagsMap, counts] = await Promise.all([
+          getTagsForPostIds(postIds),
+          getStarCounts(postIds),
+        ]);
+
+        if (userId && postIds.length > 0) {
+          const userStars = await db.select({ postId: stars.postId }).from(stars).where(and(eq(stars.userId, userId), inArray(stars.postId, postIds)));
+          starSet = new Set(userStars.map((s) => s.postId));
+        }
       }
 
       const data: PostWithInteractions[] = rows.map((r) => {
@@ -420,56 +442,63 @@ export class PostQueries {
       whereClause = and(searchWhere, or(eq(posts.categoryId, categoryId), inArray(posts.categoryId, subIds)));
     }
 
-    // Aggregated stars subquery — avoids correlated subquery per row for popular/trending sorts
-    const starCounts = db
-      .select({ postId: stars.postId, cnt: sql<number>`count(*)::int`.as("cnt") })
-      .from(stars)
-      .groupBy(stars.postId)
-      .as("star_counts");
+    // Only build the star-count aggregate for popularity sorts; skip for "latest"/"relevance"
+    // to avoid a full GROUP BY on the stars table when it's not needed for ordering.
+    const needsStarSort = sortBy === "popular" || sortBy === "trending";
+    const starCounts = needsStarSort
+      ? db
+          .select({ postId: stars.postId, cnt: sql<number>`count(*)::int`.as("cnt") })
+          .from(stars)
+          .groupBy(stars.postId)
+          .as("star_counts")
+      : null;
 
     // Determine ordering based on sortBy
     const orderByClause =
-      sortBy === "latest"
-        ? [desc(posts.createdAt)]
-        : sortBy === "popular"
-          ? [desc(sql`coalesce(${starCounts.cnt}, 0)`), desc(posts.createdAt)]
-          : sortBy === "trending"
-            ? [desc(sql`coalesce(${starCounts.cnt}, 0)`), desc(posts.createdAt)]
-            : [desc(rankExpr), desc(posts.createdAt)]; // "relevance" (default)
+      needsStarSort && starCounts
+        ? [desc(sql`coalesce(${starCounts.cnt}, 0)`), desc(posts.createdAt)]
+        : sortBy === "latest"
+          ? [desc(posts.createdAt)]
+          : [desc(rankExpr), desc(posts.createdAt)]; // "relevance" (default)
 
     const endTimer = DatabaseMetrics.startQuery();
     try {
+      const searchSelectFields = {
+        postId: posts.id,
+        title: posts.title,
+        slug: posts.slug,
+        description: posts.description,
+        isPremium: posts.isPremium,
+        isFeatured: posts.isFeatured,
+        isPublished: posts.isPublished,
+        status: posts.status,
+        authorId: posts.authorId,
+        categoryId: posts.categoryId,
+        createdAt: posts.createdAt,
+        updatedAt: posts.updatedAt,
+        authorUserId: users.id,
+        authorName: users.name,
+        authorAvatar: users.avatar,
+        authorEmail: users.email,
+        catId: categories.id,
+        catName: categories.name,
+        catSlug: categories.slug,
+        parentId: parentCategory.id,
+        parentName: parentCategory.name,
+        parentSlug: parentCategory.slug,
+      };
+
+      const searchBaseQuery = db
+        .select(searchSelectFields)
+        .from(posts)
+        .leftJoin(users, eq(posts.authorId, users.id))
+        .leftJoin(categories, eq(posts.categoryId, categories.id))
+        .leftJoin(parentCategory, eq(categories.parentId, parentCategory.id))
+        .$dynamic();
+      if (starCounts) searchBaseQuery.leftJoin(starCounts, eq(posts.id, starCounts.postId));
+
       const [rows, countResult] = await Promise.all([
-        db
-          .select({
-            postId: posts.id,
-            title: posts.title,
-            slug: posts.slug,
-            description: posts.description,
-            isPremium: posts.isPremium,
-            isFeatured: posts.isFeatured,
-            isPublished: posts.isPublished,
-            status: posts.status,
-            authorId: posts.authorId,
-            categoryId: posts.categoryId,
-            createdAt: posts.createdAt,
-            updatedAt: posts.updatedAt,
-            authorUserId: users.id,
-            authorName: users.name,
-            authorAvatar: users.avatar,
-            authorEmail: users.email,
-            catId: categories.id,
-            catName: categories.name,
-            catSlug: categories.slug,
-            parentId: parentCategory.id,
-            parentName: parentCategory.name,
-            parentSlug: parentCategory.slug,
-          })
-          .from(posts)
-          .leftJoin(users, eq(posts.authorId, users.id))
-          .leftJoin(categories, eq(posts.categoryId, categories.id))
-          .leftJoin(parentCategory, eq(categories.parentId, parentCategory.id))
-          .leftJoin(starCounts, eq(posts.id, starCounts.postId))
+        searchBaseQuery
           .where(whereClause)
           .orderBy(...orderByClause)
           .limit(limit)
@@ -672,8 +701,8 @@ export class PostQueries {
         getTagsForPostIds([p.id]),
         getStarCounts([p.id]),
         userId
-          ? db.select().from(stars).where(and(eq(stars.postId, p.id), eq(stars.userId, userId))).limit(1)
-          : Promise.resolve([] as (typeof stars.$inferSelect)[]),
+          ? db.select({ id: stars.id }).from(stars).where(and(eq(stars.postId, p.id), eq(stars.userId, userId))).limit(1)
+          : Promise.resolve([] as { id: string }[]),
       ]);
       const isStarred = starRow.length > 0;
       return {
@@ -733,8 +762,8 @@ export class PostQueries {
         getTagsForPostIds([p.id]),
         getStarCounts([p.id]),
         userId
-          ? db.select().from(stars).where(and(eq(stars.postId, p.id), eq(stars.userId, userId))).limit(1)
-          : Promise.resolve([] as (typeof stars.$inferSelect)[]),
+          ? db.select({ id: stars.id }).from(stars).where(and(eq(stars.postId, p.id), eq(stars.userId, userId))).limit(1)
+          : Promise.resolve([] as { id: string }[]),
       ]);
       const isStarred = starRow.length > 0;
       return {
@@ -768,6 +797,88 @@ export class PostQueries {
         _count: { stars: counts.get(p.id) ?? 0 },
         isStarred,
       } as PostFullWithInteractions;
+    } finally {
+      endTimer();
+    }
+  }
+
+  /**
+   * Batch-fetch multiple posts by ID in list shape (no content).
+   * Runs 3 parallel queries regardless of how many posts are requested — eliminates N+1 patterns.
+   */
+  static async getByIds(ids: string[], userId?: string): Promise<PostWithInteractions[]> {
+    if (ids.length === 0) return [];
+    const endTimer = DatabaseMetrics.startQuery();
+    try {
+      const rows = await db
+        .select({
+          postId: posts.id,
+          title: posts.title,
+          slug: posts.slug,
+          description: posts.description,
+          isPremium: posts.isPremium,
+          isFeatured: posts.isFeatured,
+          isPublished: posts.isPublished,
+          status: posts.status,
+          authorId: posts.authorId,
+          categoryId: posts.categoryId,
+          createdAt: posts.createdAt,
+          updatedAt: posts.updatedAt,
+          authorUserId: users.id,
+          authorName: users.name,
+          authorAvatar: users.avatar,
+          authorEmail: users.email,
+          catId: categories.id,
+          catName: categories.name,
+          catSlug: categories.slug,
+          parentId: parentCategory.id,
+          parentName: parentCategory.name,
+          parentSlug: parentCategory.slug,
+        })
+        .from(posts)
+        .leftJoin(users, eq(posts.authorId, users.id))
+        .leftJoin(categories, eq(posts.categoryId, categories.id))
+        .leftJoin(parentCategory, eq(categories.parentId, parentCategory.id))
+        .where(inArray(posts.id, ids));
+
+      const postIds = rows.map((r) => r.postId);
+      const [tagsMap, counts] = await Promise.all([
+        getTagsForPostIds(postIds),
+        getStarCounts(postIds),
+      ]);
+
+      let starSet = new Set<string>();
+      if (userId && postIds.length > 0) {
+        const userStars = await db
+          .select({ postId: stars.postId })
+          .from(stars)
+          .where(and(eq(stars.userId, userId), inArray(stars.postId, postIds)));
+        starSet = new Set(userStars.map((s) => s.postId));
+      }
+
+      return rows.map((r) => ({
+        id: r.postId,
+        title: r.title,
+        slug: r.slug,
+        description: r.description,
+        isPremium: r.isPremium ?? false,
+        isPublished: r.isPublished ?? false,
+        isFeatured: r.isFeatured ?? false,
+        status: r.status ?? "DRAFT",
+        authorId: r.authorId,
+        createdAt: r.createdAt!,
+        updatedAt: r.updatedAt!,
+        author: { id: r.authorUserId ?? "", name: r.authorName, avatar: r.authorAvatar, email: r.authorEmail ?? "" },
+        category: {
+          id: r.catId ?? "",
+          name: r.catName ?? "",
+          slug: r.catSlug ?? "",
+          parent: r.parentId ? { id: r.parentId, name: r.parentName ?? "", slug: r.parentSlug ?? "" } : null,
+        },
+        tags: tagsMap.get(r.postId) ?? [],
+        _count: { stars: counts.get(r.postId) ?? 0 },
+        isStarred: userId ? starSet.has(r.postId) : undefined,
+      }));
     } finally {
       endTimer();
     }
@@ -899,27 +1010,27 @@ export class MetadataQueries {
   static async getAllTags() {
     const endTimer = DatabaseMetrics.startQuery();
     try {
-      const rows = await db
-        .select({
-          id: tags.id,
-          name: tags.name,
-          slug: tags.slug,
-          createdAt: tags.createdAt,
-          postCount: sql<number>`(
-            SELECT count(*)::int FROM "postToTag" pt
-            JOIN posts p ON p.id = pt."A"
-            WHERE pt."B" = ${tags.id} AND p."isPublished" = true
-          )`,
-        })
-        .from(tags)
-        .orderBy(asc(tags.name));
+      // Two parallel queries: tag list + pre-aggregated counts via JOIN.
+      // Replaces a correlated scalar subquery per row (O(n) round-trips) with O(1) queries.
+      const [rows, countRows] = await Promise.all([
+        db
+          .select({ id: tags.id, name: tags.name, slug: tags.slug, createdAt: tags.createdAt })
+          .from(tags)
+          .orderBy(asc(tags.name)),
+        db
+          .select({ tagId: postToTag.B, count: sql<number>`count(*)::int` })
+          .from(postToTag)
+          .innerJoin(posts, and(eq(postToTag.A, posts.id), eq(posts.isPublished, true)))
+          .groupBy(postToTag.B),
+      ]);
 
+      const countMap = new Map(countRows.map((r) => [r.tagId, r.count]));
       return rows.map((t) => ({
         id: t.id,
         name: t.name,
         slug: t.slug,
         createdAt: t.createdAt,
-        _count: { posts: t.postCount },
+        _count: { posts: countMap.get(t.id) ?? 0 },
       }));
     } finally {
       endTimer();

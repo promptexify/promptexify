@@ -16,8 +16,8 @@ export async function proxy(request: NextRequest) {
     const isDevelopment = process.env.NODE_ENV === 'development';
     const nonce = CSPNonce.generate(); // Always generate nonce for consistency
 
-    // Handle Supabase session
-    const response = await updateSession(request);
+    // Handle Supabase session — getUser() validates the JWT with Supabase servers.
+    const { response, userId: verifiedUserId } = await updateSession(request);
 
     // If updateSession returns a redirect, follow it immediately.
     if (response.headers.has("Location")) {
@@ -26,6 +26,14 @@ export async function proxy(request: NextRequest) {
 
     // Prepare request headers for modification
     const requestHeaders = new Headers(request.headers);
+
+    // Forward the middleware-verified user ID so downstream route handlers can
+    // skip their own getUser() call. Always delete first to prevent clients
+    // from forging this header — middleware sets the only authoritative value.
+    requestHeaders.delete("x-user-id");
+    if (verifiedUserId) {
+      requestHeaders.set("x-user-id", verifiedUserId);
+    }
 
     // Set nonce in headers for Server Components to access
     requestHeaders.set("x-nonce", nonce);

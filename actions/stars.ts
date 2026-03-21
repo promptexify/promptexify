@@ -6,7 +6,7 @@ import { stars as starsTable } from "@/lib/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth";
 import { revalidateCache, CACHE_TAGS } from "@/lib/cache";
-import { Queries } from "@/lib/query";
+import { PostQueries } from "@/lib/query";
 
 export async function toggleStarAction(data: StarData) {
   try {
@@ -72,12 +72,16 @@ export async function getUserStarsAction() {
       .where(eq(starsTable.userId, user.id))
       .orderBy(desc(starsTable.createdAt));
 
-    const starsWithPosts = await Promise.all(
-      starRows.map(async (s) => {
-        const post = await Queries.posts.getById(s.postId, user.id);
-        return { id: s.id, createdAt: s.createdAt, post };
-      })
-    );
+    // Batch-fetch all starred posts in 3 parallel queries instead of N×4 sequential queries.
+    // All returned posts are starred by definition — no need to re-check per-post star status.
+    const postIds = starRows.map((s) => s.postId);
+    const postList = await PostQueries.getByIds(postIds);
+    const postMap = new Map(postList.map((p) => [p.id, { ...p, isStarred: true as const }]));
+    const starsWithPosts = starRows.map((s) => ({
+      id: s.id,
+      createdAt: s.createdAt,
+      post: postMap.get(s.postId) ?? null,
+    }));
     return { success: true, stars: starsWithPosts };
   } catch (error) {
     if (error && typeof error === "object" && "digest" in error) {
@@ -103,7 +107,7 @@ export async function checkStarStatusAction(postId: string) {
     const user = currentUser.userData;
 
     const [star] = await db
-      .select()
+      .select({ id: starsTable.id })
       .from(starsTable)
       .where(and(eq(starsTable.userId, user.id), eq(starsTable.postId, postId)))
       .limit(1);

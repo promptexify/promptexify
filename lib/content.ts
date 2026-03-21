@@ -4,9 +4,10 @@ import {
   categories,
   tags,
   postToTag,
+  stars,
 } from "@/lib/db/schema";
-import { eq, and, or, desc, asc, ilike, sql } from "drizzle-orm";
-import { Queries, MetadataQueries } from "@/lib/query";
+import { eq, and, or, desc, asc, ilike, sql, inArray } from "drizzle-orm";
+import { Queries, MetadataQueries, getCachedPosts } from "@/lib/query";
 import { createCachedFunction, CACHE_TAGS, CACHE_DURATIONS } from "@/lib/cache";
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
@@ -127,20 +128,32 @@ export async function getFeaturedPostIds(limit = 100): Promise<string[]> {
 /**
  * Fetch only featured published posts (with full details) — avoids the
  * expensive pattern of fetching 500 posts and filtering client-side.
+ *
+ * Always uses the shared post cache (omits userId so the result is cacheable),
+ * then overlays per-user star status with a single lightweight query.
  */
 export async function getFeaturedPosts(
   userId?: string,
   limit = 12
 ): Promise<PostWithInteractions[]> {
-  const result = await Queries.posts.getPaginated({
+  const result = await getCachedPosts({
     page: 1,
     limit,
     includeUnpublished: false,
     isFeatured: true,
-    userId,
     sortBy: "latest",
   });
-  return result.data as unknown as PostWithInteractions[];
+  const postList = result.data as unknown as PostWithInteractions[];
+
+  if (!userId || postList.length === 0) return postList;
+
+  const postIds = postList.map((p) => p.id);
+  const userStars = await db
+    .select({ postId: stars.postId })
+    .from(stars)
+    .where(and(eq(stars.userId, userId), inArray(stars.postId, postIds)));
+  const starSet = new Set(userStars.map((s) => s.postId));
+  return postList.map((p) => ({ ...p, isStarred: starSet.has(p.id) }));
 }
 
 export const getPostById = createCachedFunction(

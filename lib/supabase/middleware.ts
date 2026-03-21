@@ -1,7 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-export async function updateSession(request: NextRequest) {
+export async function updateSession(
+  request: NextRequest
+): Promise<{ response: NextResponse; userId: string | null }> {
   let supabaseResponse = NextResponse.next({
     request,
   });
@@ -93,7 +95,7 @@ export async function updateSession(request: NextRequest) {
       redirectResponse.cookies.delete(cookieName);
     });
 
-    return redirectResponse;
+    return { response: redirectResponse, userId: null };
   }
 
   // For authenticated users, we'll handle role-based redirects in the pages themselves
@@ -108,7 +110,7 @@ export async function updateSession(request: NextRequest) {
   ) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
-    return NextResponse.redirect(url);
+    return { response: NextResponse.redirect(url), userId: null };
   }
 
   // IMPORTANT: You *must* return the supabaseResponse object as it is. If you're
@@ -116,5 +118,5 @@ export async function updateSession(request: NextRequest) {
   // 1. Pass the request in it, like so: NextResponse.next({ request })
   // 2. Copy over the cookies, like so: response.cookies.setAll(supabaseResponse.cookies.getAll())
 
-  return supabaseResponse;
+  return { response: supabaseResponse, userId: user?.id ?? null };
 }

@@ -1,39 +1,40 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { settings } from "@/lib/db/schema";
-import { desc } from "drizzle-orm";
-import { getCurrentUser } from "@/lib/auth";
+import { headers } from "next/headers";
+import { getMaxTagsPerPost, getAllowUserPosts } from "@/lib/settings";
 import { SECURITY_HEADERS } from "@/lib/security/sanitize";
 
 /**
  * GET /api/settings/content-config
  * Returns frontend-safe content configuration values.
- * Requires authentication.
+ * Requires authentication (validated via x-user-id header set by middleware).
  */
 export async function GET() {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
+    const headersList = await headers();
+    const userId = headersList.get("x-user-id");
+
+    if (!userId) {
       return NextResponse.json(
         { error: "Authentication required" },
         { status: 401, headers: SECURITY_HEADERS }
       );
     }
 
-    const [row] = await db
-      .select({
-        maxTagsPerPost: settings.maxTagsPerPost,
-        allowUserPosts: settings.allowUserPosts,
-      })
-      .from(settings)
-      .orderBy(desc(settings.updatedAt))
-      .limit(1);
+    const [maxTagsPerPost, allowUserPosts] = await Promise.all([
+      getMaxTagsPerPost(),
+      getAllowUserPosts(),
+    ]);
 
-    return NextResponse.json({
-      success: true,
-      maxTagsPerPost: row?.maxTagsPerPost ?? 20,
-      allowUserPosts: row?.allowUserPosts ?? true,
-    }, { headers: SECURITY_HEADERS });
+    return NextResponse.json(
+      { success: true, maxTagsPerPost, allowUserPosts },
+      {
+        headers: {
+          ...SECURITY_HEADERS,
+          // Per-user auth check but settings are shared — safe to cache briefly.
+          "Cache-Control": "private, max-age=60, stale-while-revalidate=300",
+        },
+      }
+    );
   } catch (error) {
     console.error("Error fetching content config:", error);
     return NextResponse.json(

@@ -14,8 +14,10 @@ export const CACHE_TAGS = {
   RELATED_POSTS: "related-posts",
   SEARCH_RESULTS: "search-results",
   USER_STARS: "user-stars",
+  USER_PROFILE: "user-profile",
   POPULAR_POSTS: "popular-posts",
   ANALYTICS: "analytics",
+  ADMIN_STATS: "admin-stats",
 } as const;
 
 export const CACHE_DURATIONS = {

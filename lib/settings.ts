@@ -53,6 +53,50 @@ export async function getAllowUserPosts(): Promise<boolean> {
   return _getAllowUserPosts();
 }
 
+// ---------------------------------------------------------------------------
+// postsPageSize
+// ---------------------------------------------------------------------------
+
+const _getPostsPageSize = unstable_cache(
+  async () => {
+    const [row] = await db
+      .select({ postsPageSize: settings.postsPageSize })
+      .from(settings)
+      .orderBy(desc(settings.updatedAt))
+      .limit(1);
+    return row?.postsPageSize ?? 12;
+  },
+  ["settings-posts-page-size"],
+  { revalidate: SETTINGS_REVALIDATE, tags: [CACHE_TAGS.POSTS] }
+);
+
+/** Get the current posts page size. Falls back to 12 when settings are missing. */
+export async function getPostsPageSize(): Promise<number> {
+  return _getPostsPageSize();
+}
+
+// ---------------------------------------------------------------------------
+// featuredPostsLimit
+// ---------------------------------------------------------------------------
+
+const _getFeaturedPostsLimit = unstable_cache(
+  async () => {
+    const [row] = await db
+      .select({ featuredPostsLimit: settings.featuredPostsLimit })
+      .from(settings)
+      .orderBy(desc(settings.updatedAt))
+      .limit(1);
+    return row?.featuredPostsLimit ?? 12;
+  },
+  ["settings-featured-posts-limit"],
+  { revalidate: SETTINGS_REVALIDATE, tags: [CACHE_TAGS.POSTS] }
+);
+
+/** Get the current featured posts limit. Falls back to 12 when settings are missing. */
+export async function getFeaturedPostsLimit(): Promise<number> {
+  return _getFeaturedPostsLimit();
+}
+
 /** Call this after settings are saved so the next request re-reads from DB. */
 export async function clearContentFlagsCache() {
   await revalidateCache(CACHE_TAGS.POSTS);

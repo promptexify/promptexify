@@ -11,8 +11,9 @@ import {
 import { eq, and, desc, gte, lt, sql, inArray, aliasedTable } from "drizzle-orm";
 import { requireAuth, getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag, unstable_cache } from "next/cache";
 import { redirect } from "next/navigation";
+import { CACHE_TAGS, CACHE_DURATIONS } from "@/lib/cache";
 import { withCSRFProtection, handleSecureActionError } from "@/lib/security/csp";
 import { updateUserProfileSchema } from "@/lib/schemas";
 import { sanitizeInput } from "@/lib/security/sanitize";
@@ -122,8 +123,9 @@ export const updateUserProfileAction = withCSRFProtection(
         .set({ name, updatedAt: new Date() })
         .where(eq(users.id, user.id));
 
-      // Revalidate the account page to show updated data
+      // Revalidate the account page and the profile API cache
       revalidatePath("/account");
+      revalidateTag(CACHE_TAGS.USER_PROFILE, 'max');
 
       return {
         success: true,
@@ -155,32 +157,18 @@ export async function getUserProfileAction() {
       };
     }
 
-    const [userProfile] = await db
-      .select({
-        id: users.id,
-        email: users.email,
-        name: users.name,
-        avatar: users.avatar,
-        type: users.type,
-        role: users.role,
-        oauth: users.oauth,
-        createdAt: users.createdAt,
-        updatedAt: users.updatedAt,
-      })
-      .from(users)
-      .where(eq(users.id, currentUser.id))
-      .limit(1);
-
-    if (!userProfile) {
-      return {
-        success: false,
-        error: "User profile not found",
-      };
-    }
-
-    // Combine Drizzle data with Supabase auth data (including last_sign_in_at)
+    // userData is already loaded by getCurrentUser() — no second DB query needed.
+    const { userData } = currentUser;
     const userActivityData = {
-      ...userProfile,
+      id: userData.id,
+      email: userData.email,
+      name: userData.name,
+      avatar: userData.avatar,
+      type: userData.type,
+      role: userData.role,
+      oauth: userData.oauth,
+      createdAt: userData.createdAt,
+      updatedAt: userData.updatedAt,
       lastSignInAt: currentUser.last_sign_in_at || null,
       emailConfirmedAt: currentUser.email_confirmed_at || null,
     };
@@ -440,30 +428,14 @@ export async function getAllUsersActivityAction() {
   }
 }
 
-export async function getAdminDashboardStatsAction() {
-  try {
-    // Require authentication and check admin role
-    const currentUser = await getCurrentUser();
-    if (!currentUser?.userData) {
-      return {
-        success: false,
-        error: "User not authenticated",
-      };
-    }
-
-    // Check if user is admin
-    if (currentUser.userData.role !== "ADMIN") {
-      return {
-        success: false,
-        error: "Admin access required",
-      };
-    }
-
+// Cached DB fetch for admin dashboard stats (site-wide aggregates, 2-min TTL).
+// Auth check is done in the action wrapper below; the cached function is data-only.
+const _fetchAdminStats = unstable_cache(
+  async () => {
     const now = new Date();
     const t30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
     const t60 = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000).toISOString();
 
-    // Conditional aggregation: 12 COUNT queries → 4 (one per table)
     const [
       postStats,
       userStats,
@@ -526,6 +498,33 @@ export async function getAdminDashboardStatsAction() {
         .orderBy(desc(posts.createdAt))
         .limit(5),
     ]);
+
+    return { postStats, userStats, catStats, tagStats, starCountRow, categoryCountRows, recentRows };
+  },
+  ["admin-dashboard-stats"],
+  { revalidate: 120, tags: [CACHE_TAGS.ADMIN_STATS] }
+);
+
+export async function getAdminDashboardStatsAction() {
+  try {
+    // Require authentication and check admin role
+    const currentUser = await getCurrentUser();
+    if (!currentUser?.userData) {
+      return {
+        success: false,
+        error: "User not authenticated",
+      };
+    }
+
+    // Check if user is admin
+    if (currentUser.userData.role !== "ADMIN") {
+      return {
+        success: false,
+        error: "Admin access required",
+      };
+    }
+
+    const { postStats, userStats, catStats, tagStats, starCountRow, categoryCountRows, recentRows } = await _fetchAdminStats();
 
     const ps = postStats[0] ?? { total: 0, thisMonth: 0, prevMonth: 0 };
     const us = userStats[0] ?? { total: 0, thisMonth: 0, prevMonth: 0 };

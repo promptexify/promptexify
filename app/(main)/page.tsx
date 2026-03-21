@@ -6,11 +6,12 @@ import { Suspense } from "react";
 import { PostMasonrySkeleton } from "@/components/post-masonry-skeleton";
 import { HeroSection } from "@/components/ui/hero-section";
 import { Container } from "@/components/ui/container";
-import { getSettingsAction } from "@/actions/settings";
+import { getFeaturedPostsLimit } from "@/lib/settings";
 import { SafeAsync } from "@/components/ui/safe-async";
 import { FeaturedPostsClient } from "@/components/featured-posts-client";
 import nextDynamic from "next/dynamic";
 import { getMetadata } from "@/config/seo";
+import { headers } from "next/headers";
 
 export const metadata = getMetadata("home");
 
@@ -24,25 +25,16 @@ const CtaSection = nextDynamic(
 export const dynamic = "force-dynamic";
 
 async function PostGrid() {
-  const [userResult, settingsResult] = await Promise.allSettled([
-    getCurrentUser(),
-    getSettingsAction(),
+  const headersList = await headers();
+  const userId = headersList.get("x-user-id") ?? undefined;
+
+  // Get limit from cache (~1ms), then run auth + posts in parallel
+  const featuredPostsLimit = await getFeaturedPostsLimit();
+  const [currentUser, featuredPosts] = await Promise.all([
+    getCurrentUser().catch(() => null),
+    getFeaturedPosts(userId, featuredPostsLimit),
   ]);
-
-  const currentUser =
-    userResult.status === "fulfilled" ? userResult.value : null;
-  const userId = currentUser?.userData?.id;
-  const userType = currentUser?.userData?.type || null;
-
-  let featuredPostsLimit = 12;
-  if (settingsResult.status === "fulfilled") {
-    const s = settingsResult.value;
-    if (s?.success && s.data?.featuredPostsLimit) {
-      featuredPostsLimit = s.data.featuredPostsLimit;
-    }
-  }
-
-  const featuredPosts = await getFeaturedPosts(userId, featuredPostsLimit);
+  const userType = currentUser?.userData?.type ?? null;
 
   return <FeaturedPostsClient posts={featuredPosts} userType={userType} />;
 }

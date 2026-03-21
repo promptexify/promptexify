@@ -4,10 +4,12 @@ import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getBaseUrl } from "@/lib/utils";
+import type { User } from "@supabase/supabase-js";
 import {
   signInSchema,
   signUpSchema,
@@ -231,24 +233,53 @@ export async function signOut() {
 }
 
 export const getCurrentUser = cache(async () => {
-  const supabase = await createClient();
+  // Fast path: middleware already called supabase.auth.getUser() and stamped the
+  // verified user ID on x-user-id. Reading the header skips a redundant network
+  // round-trip to Supabase (~150-800ms) and only does one DB lookup.
+  let verifiedUserId: string | null = null;
+  try {
+    const headersList = await headers();
+    verifiedUserId = headersList.get("x-user-id");
+  } catch {
+    // headers() is unavailable outside a request context (e.g. build-time).
+  }
 
-  // Step 1: verify the session with Supabase (network call, no DB involved).
+  if (verifiedUserId) {
+    const [userData] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, verifiedUserId))
+      .limit(1);
+
+    if (!userData) return null;
+
+    // Build a shape compatible with callers that spread the Supabase User object.
+    // email is kept in sync with Supabase via upsertUserInDatabase on every login.
+    // Supabase-only fields (last_sign_in_at, email_confirmed_at) are undefined here;
+    // || null guards in getUserProfileAction convert them to null gracefully.
+    const minimalUser = {
+      id: verifiedUserId,
+      email: userData.email,
+      aud: "authenticated",
+      role: "authenticated",
+    } as User;
+
+    return { ...minimalUser, userData };
+  }
+
+  // Slow path: no x-user-id header (outside middleware context, build time, etc.)
+  const supabase = await createClient();
   let user: Awaited<ReturnType<typeof supabase.auth.getUser>>["data"]["user"];
   try {
     const { data } = await supabase.auth.getUser();
     user = data.user;
   } catch (error) {
     console.error("Supabase getUser error:", error);
-    return null; // Supabase auth failure → treat as unauthenticated
+    return null;
   }
 
   if (!user) return null;
 
-  // Step 2: fetch the app-level user record from Postgres.
-  // A DB error here (timeout, overload) must NOT be treated as "not logged in"
-  // — we re-throw so callers can surface a proper 500 instead of redirecting
-  // an authenticated user to the sign-in page.
   const [userData] = await db
     .select()
     .from(users)
