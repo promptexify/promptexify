@@ -6,8 +6,31 @@ import { SearchClientWrapper } from "@/components/search-client-wrapper";
 import { Queries } from "@/lib/query";
 import { getSettingsAction } from "@/actions/settings";
 import { SafeAsync } from "@/components/ui/safe-async";
+import { setMetadata } from "@/config/seo";
 
-export const dynamic = "force-dynamic"; // Required because we use getCurrentUser() which accesses cookies
+export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const { q } = await searchParams;
+  const query = q?.trim();
+  if (query) {
+    return setMetadata({
+      title: `"${query}" — Search Results`,
+      description: `Search results for "${query}" — Cursor rules, MCP configs, Claude Code skills, and AI coding prompts on Promptexify.`,
+      robots: { index: false, follow: true },
+    });
+  }
+  return setMetadata({
+    title: "Search Prompts & Rules",
+    description:
+      "Search thousands of AI coding prompts, Cursor rules, MCP configs, and Claude Code skills on Promptexify.",
+    robots: { index: false, follow: true },
+  });
+} // Required because we use getCurrentUser() which accesses cookies
 
 interface SearchPageProps {
   searchParams: Promise<{

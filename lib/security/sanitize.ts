@@ -791,29 +791,6 @@ export function getRateLimitConfig() {
 }
 
 /**
- * Get file upload configurations based on environment
- */
-export function getFileUploadConfig() {
-  return {
-    maxImageSize: isProduction() ? 2 * 1024 * 1024 : 5 * 1024 * 1024, // 2MB prod, 5MB dev
-    maxVideoSize: isProduction() ? 10 * 1024 * 1024 : 50 * 1024 * 1024, // 10MB prod, 50MB dev
-    allowedImageTypes: [
-      "image/jpeg",
-      "image/jpg",
-      "image/png",
-      "image/webp",
-      ...(isDevelopment() ? ["image/gif", "image/bmp"] : []), // Additional types in dev
-    ],
-    allowedVideoTypes: [
-      "video/mp4",
-      "video/webm",
-      "video/quicktime",
-      ...(isDevelopment() ? ["video/avi", "video/mov"] : []), // Additional types in dev
-    ],
-  };
-}
-
-/**
  * Validate content length based on environment
  */
 export function getContentLimits() {

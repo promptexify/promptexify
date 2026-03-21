@@ -21,7 +21,6 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { ArrowLeft, Check, Info, Loader2 } from "@/components/ui/icons";
 import Link from "next/link";
 import { TagSelector } from "@/components/tag-selector";
-import { MediaUpload } from "@/components/media-upload";
 import { useAuth } from "@/hooks/use-auth";
 import { useCSRFForm } from "@/hooks/use-csrf";
 import { updatePostAction } from "@/actions";
@@ -55,11 +54,8 @@ interface Post {
   slug: string;
   description?: string;
   content: string;
-  uploadPath?: string;
-  uploadFileType?: "IMAGE" | "VIDEO";
   isPublished: boolean;
   isPremium: boolean;
-  media: { id: string; mimeType: string; relativePath: string; url: string }[];
   category: {
     id: string;
     name: string;
@@ -84,21 +80,11 @@ export default function EditPostPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
-  const [postTitle, setPostTitle] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
   const [categories, setCategories] = useState<Category[]>([]);
-  const [tags, setTags] = useState<Tag[]>([]);
-  const [uploadPath, setUploadPath] = useState<string | null>(null);
-  const [uploadFileType, setUploadFileType] = useState<"IMAGE" | "VIDEO" | null>(null);
-  const [uploadMediaId, setUploadMediaId] = useState<string | null>(null);
-  const [previewPath, setPreviewPath] = useState<string | null>(null);
-  const [previewVideoPath, setPreviewVideoPath] = useState<string | null>(null);
-  const [blurData, setBlurData] = useState<string | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [pendingTags, setPendingTags] = useState<string[]>([]);
   const [maxTagsPerPost, setMaxTagsPerPost] = useState<number>(15);
-  const [allowUserUploads, setAllowUserUploads] = useState<boolean>(true);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
 
   // Redirect if not authenticated or not authorized
@@ -129,10 +115,9 @@ export default function EditPostPage() {
         setIsLoading(true);
         setError(null);
 
-        const [postRes, categoriesRes, tagsRes] = await Promise.all([
+        const [postRes, categoriesRes] = await Promise.all([
           fetch(`/api/posts/${postId}`),
           fetch("/api/categories"),
-          fetch("/api/tags"),
         ]);
 
         if (!postRes.ok) {
@@ -156,49 +141,10 @@ export default function EditPostPage() {
           console.error("Failed to fetch categories:", categoriesRes.status);
         }
 
-        // Handle tags response
-        let tagsData = [];
-        if (tagsRes.ok) {
-          const tagResponse = await tagsRes.json();
-          tagsData = Array.isArray(tagResponse) ? tagResponse : [];
-        } else {
-          console.error("Failed to fetch tags:", tagsRes.status);
-        }
-
         setPost(postData);
         setCategories(categoriesData);
-        setTags(tagsData);
         setSelectedTags(postData.tags.map((tag: Tag) => tag.name));
 
-        if (postData.media && postData.media.length > 0) {
-          const image = postData.media.find(
-            (m: { mimeType: string; url?: string }) =>
-              m.mimeType.startsWith("image/")
-          );
-          const video = postData.media.find(
-            (m: { mimeType: string; url?: string }) =>
-              m.mimeType.startsWith("video/")
-          );
-
-          if (image) {
-            setUploadPath(image.relativePath);
-            setUploadFileType("IMAGE");
-            setUploadMediaId(image.id);
-            setPreviewPath(postData.previewPath || null);
-            setPreviewVideoPath(postData.previewVideoPath || null);
-            setBlurData(image.blurDataUrl || null);
-          }
-          if (video) {
-            setUploadPath(video.relativePath);
-            setUploadFileType("VIDEO");
-            setUploadMediaId(video.id);
-            setPreviewPath(postData.previewPath || null);
-            setPreviewVideoPath(postData.previewVideoPath || null);
-            setBlurData(null); // Videos don't have blurDataUrl
-          }
-        }
-
-        setPostTitle(postData.title || "");
         // Set the selected category (parent category if current is child, or current if parent)
         setSelectedCategory(
           postData.category.parent?.slug || postData.category.slug
@@ -206,9 +152,7 @@ export default function EditPostPage() {
       } catch (error) {
         console.error("Error fetching data:", error);
         setError("Failed to load post data");
-        // Ensure states remain as arrays even on error
         setCategories([]);
-        setTags([]);
       } finally {
         setIsLoading(false);
       }
@@ -230,9 +174,6 @@ export default function EditPostPage() {
           const data = await res.json();
           if (typeof data.maxTagsPerPost === "number") {
             setMaxTagsPerPost(data.maxTagsPerPost);
-          }
-          if (typeof data.allowUserUploads === "boolean") {
-            setAllowUserUploads(data.allowUserUploads);
           }
         }
       } catch (err) {
@@ -259,17 +200,11 @@ export default function EditPostPage() {
       return;
     }
 
-    if (isUploadingMedia) {
-      toast.error("Please wait for the media to finish uploading.");
-      return;
-    }
-
     setIsSubmitting(true);
 
     try {
       const formData = new FormData(e.currentTarget);
       // First, create any pending tags
-      const createdTags: Tag[] = [];
       const failedTags: string[] = [];
 
       if (pendingTags.length > 0) {
@@ -293,8 +228,7 @@ export default function EditPostPage() {
             });
 
             if (response.ok) {
-              const newTag = await response.json();
-              createdTags.push(newTag);
+              // Tag created successfully
             } else {
               const errorData = await response.json().catch(() => ({}));
 
@@ -303,14 +237,6 @@ export default function EditPostPage() {
                 console.log(
                   `Tag "${tagName}" already exists, skipping creation`
                 );
-
-                // Try to find the existing tag in our available tags
-                const existingTag = tags.find(
-                  (t) => t.name.toLowerCase() === tagName.toLowerCase()
-                );
-                if (existingTag) {
-                  createdTags.push(existingTag);
-                }
               } else {
                 console.error(`Failed to create tag "${tagName}":`, errorData);
                 failedTags.push(tagName);
@@ -320,17 +246,6 @@ export default function EditPostPage() {
             console.error(`Error creating tag "${tagName}":`, error);
             failedTags.push(tagName);
           }
-        }
-
-        // Update the tags list with newly created tags
-        if (createdTags.length > 0) {
-          setTags((prevTags) => {
-            const existingTagNames = prevTags.map((t) => t.name.toLowerCase());
-            const newTags = createdTags.filter(
-              (tag) => !existingTagNames.includes(tag.name.toLowerCase())
-            );
-            return [...prevTags, ...newTags];
-          });
         }
 
         // If there were failed tags, show a warning but still continue
@@ -343,15 +258,6 @@ export default function EditPostPage() {
           );
         }
       }
-
-              // Add the featured media URLs to form data
-        if (uploadPath) {
-          formData.set("uploadMediaId", uploadMediaId || "");
-          formData.set("uploadPath", uploadPath);
-          formData.set("uploadFileType", uploadFileType || "");
-          formData.set("previewPath", previewPath || "");
-          formData.set("blurData", blurData || "");
-        }
 
       // Add the selected tags to form data
       formData.set("tags", selectedTags.join(","));
@@ -403,53 +309,6 @@ export default function EditPostPage() {
   // Handle pending tags changes
   function handlePendingTagsChange(newPendingTags: string[]) {
     setPendingTags(newPendingTags);
-  }
-
-  // Handle media upload
-  function handleMediaUploaded(
-    result: {
-      id: string;
-      url: string;
-      relativePath: string;
-      mimeType: string;
-      blurDataUrl?: string;
-      previewPath?: string;
-      previewVideoPath?: string;
-    } | null
-  ) {
-    if (result) {
-      if (result.mimeType.startsWith("image/")) {
-        setUploadPath(result.relativePath);
-        setUploadFileType("IMAGE");
-        setUploadMediaId(result.id);
-        setPreviewPath(result.previewPath || null);
-        setPreviewVideoPath(null);
-        setBlurData(result.blurDataUrl || null);
-      } else if (result.mimeType.startsWith("video/")) {
-        setUploadPath(result.relativePath);
-        setUploadFileType("VIDEO");
-        setUploadMediaId(result.id);
-        setPreviewPath(result.previewPath || null);
-        setPreviewVideoPath(result.previewVideoPath || null);
-        setBlurData(null); // Videos don't have blurDataUrl
-      }
-    } else {
-      setUploadPath(null);
-      setUploadFileType(null);
-      setUploadMediaId(null);
-      setPreviewPath(null);
-      setPreviewVideoPath(null);
-      setBlurData(null);
-    }
-  }
-
-  function handleUploadStateChange(uploading: boolean) {
-    setIsUploadingMedia(uploading);
-  }
-
-  // Handle title change for image filename
-  function handleTitleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    setPostTitle(e.target.value);
   }
 
   function handleCategoryChange(categorySlug: string) {
@@ -574,7 +433,6 @@ export default function EditPostPage() {
                       name="title"
                       defaultValue={post.title}
                       placeholder="Enter post title..."
-                      onChange={handleTitleChange}
                       required
                       maxLength={200}
                       disabled={isSubmitting}
@@ -627,92 +485,66 @@ export default function EditPostPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Media & Categorization</CardTitle>
+                <CardTitle>Categorization</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4 grid grid-cols-1 md:grid-cols-3 gap-8">
-                {(user.userData?.role === "ADMIN" || allowUserUploads) ? (
+              <CardContent className="space-y-4">
+                <div className="flex gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="featured-media">Featured Media</Label>
-                    <MediaUpload
-                      onMediaUploaded={handleMediaUploaded}
-                      onUploadStateChange={handleUploadStateChange}
-                      currentUploadPath={uploadPath || undefined}
-                      currentUploadFileType={uploadFileType || undefined}
-                      currentUploadMediaId={uploadMediaId || undefined}
-                      currentPreviewPath={previewPath || undefined}
-                      currentPreviewVideoPath={previewVideoPath || undefined}
-                      title={postTitle || "untitled-post"}
-                    />
-                    <p className="text-sm text-muted-foreground">
-                      Upload an image or video for this post.
-                    </p>
+                    <Label htmlFor="category">Category *</Label>
+                    <Select
+                      name="category"
+                      defaultValue={post.category.parent ? currentParentCategory : post.category.slug}
+                      required
+                      disabled={isSubmitting}
+                      onValueChange={handleCategoryChange}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {parentCategories.map((category) => (
+                          <SelectItem key={category.id} value={category.slug}>
+                            {category.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                ) : (
+
                   <div className="space-y-2">
-                    <Label>Featured Media</Label>
-                    <div className="p-4 rounded-lg border border-dashed text-sm text-muted-foreground">
-                      Media uploads are not available for user submissions at this time.
-                    </div>
-                  </div>
-                )}
-                <div className="flex gap-4 flex-col col-span-2">
-                  <div className="flex gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="category">Category *</Label>
-                      <Select
-                        name="category"
-                        defaultValue={post.category.parent ? currentParentCategory : post.category.slug}
-                        required
-                        disabled={isSubmitting}
-                        onValueChange={handleCategoryChange}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select category" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {parentCategories.map((category) => (
+                    <Label htmlFor="subcategory">Sub-category</Label>
+                    <Select
+                      name="subcategory"
+                      defaultValue={post.category.parent ? post.category.slug : "none"}
+                      disabled={isSubmitting}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select sub-category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No sub-category</SelectItem>
+                        {categories
+                          .filter((cat) => cat.parent?.slug === selectedCategory)
+                          .map((category) => (
                             <SelectItem key={category.id} value={category.slug}>
                               {category.name}
                             </SelectItem>
                           ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="subcategory">Sub-category</Label>
-                      <Select
-                        name="subcategory"
-                        defaultValue={post.category.parent ? post.category.slug : "none"}
-                        disabled={isSubmitting}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select sub-category" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">No sub-category</SelectItem>
-                          {categories
-                            .filter((cat) => cat.parent?.slug === selectedCategory)
-                            .map((category) => (
-                              <SelectItem key={category.id} value={category.slug}>
-                                {category.name}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                      </SelectContent>
+                    </Select>
                   </div>
-
-                  <TagSelector
-                    availableTags={tags}
-                    selectedTags={selectedTags}
-                    onTagsChange={handleTagsChange}
-                    onPendingTagsChange={handlePendingTagsChange}
-                    pendingTags={pendingTags}
-                    maxTags={maxTagsPerPost}
-                    disabled={isSubmitting}
-                  />
                 </div>
+
+                <TagSelector
+                  availableTags={[]}
+                  searchable
+                  selectedTags={selectedTags}
+                  onTagsChange={handleTagsChange}
+                  onPendingTagsChange={handlePendingTagsChange}
+                  pendingTags={pendingTags}
+                  maxTags={maxTagsPerPost}
+                  disabled={isSubmitting}
+                />
               </CardContent>
             </Card>
 
@@ -781,26 +613,19 @@ export default function EditPostPage() {
               </CardContent>
             </Card>
 
-            {/* Hidden form fields for media data */}
-            <input type="hidden" name="uploadPath" value={uploadPath || ""} />
-            <input type="hidden" name="uploadFileType" value={uploadFileType || ""} />
-            <input type="hidden" name="uploadMediaId" value={uploadMediaId || ""} />
-            <input type="hidden" name="previewPath" value={previewPath || ""} />
-            <input type="hidden" name="previewVideoPath" value={previewVideoPath || ""} />
-            <input type="hidden" name="blurData" value={blurData || ""} />
-
-            <TurnstileWidget
-              onSuccess={setTurnstileToken}
-              onExpire={() => setTurnstileToken(null)}
-              onError={() => setTurnstileToken(null)}
-              size="invisible"
-            />
+            <div className="flex justify-end">
+              <TurnstileWidget
+                size="normal"
+                onToken={setTurnstileToken}
+                onExpire={() => setTurnstileToken(null)}
+              />
+            </div>
 
             <div className="flex justify-end gap-4">
               <Button
                 type="submit"
                 className="w-full md:w-auto"
-                disabled={isSubmitting || isUploadingMedia}
+                disabled={isSubmitting || (!!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileToken)}
               >
                 {isSubmitting ? (
                   <>
@@ -815,7 +640,7 @@ export default function EditPostPage() {
                 type="button"
                 variant="outline"
                 asChild
-                disabled={isSubmitting || isUploadingMedia}
+                disabled={isSubmitting}
               >
                 <Link href="/posts">Cancel</Link>
               </Button>

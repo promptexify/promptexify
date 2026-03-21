@@ -71,6 +71,13 @@
       "when": 1742342520000,
       "tag": "0009_fix_rls_always_true",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1774058108368,
+      "tag": "0010_remarkable_sunspot",
+      "breakpoints": true
     }
   ]
 }

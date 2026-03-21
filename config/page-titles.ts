@@ -39,10 +39,6 @@ export const PAGE_TITLES = {
     title: "Settings",
     description: "Configure your account and application preferences",
   },
-  "/automation": {
-    title: "Automation",
-    description: "Configure and manage automated workflows",
-  },
 } as const;
 
 // Helper function to get title for a pathname

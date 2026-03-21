@@ -5,14 +5,10 @@ import { GridBackground } from "@/components/ui/grid-background";
 import { setMetadata } from "@/config/seo";
 
 export const metadata = setMetadata({
-  title: "Prompt Generator - Promptexify",
+  title: "AI Prompt Generator",
   description:
-    "AI-powered prompt generator coming soon to Promptexify. Create perfect prompts automatically with our intelligent generation tool.",
-  openGraph: {
-    title: "Prompt Generator - Promptexify",
-    description:
-      "AI-powered prompt generator coming soon to Promptexify. Create perfect prompts automatically.",
-  },
+    "AI-powered prompt generator coming soon to Promptexify. Create perfect Cursor rules, MCP configs, and Claude Code skills automatically.",
+  robots: { index: false, follow: true },
 });
 
 export default function PromptGeneratorPage() {

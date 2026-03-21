@@ -71,8 +71,6 @@ export const createPostSchema = z.object({
       (val) => val.length >= 10,
       "Content must be at least 10 characters after trimming"
     ),
-  uploadPath: z.string().url("Invalid upload URL").optional().nullable(),
-  uploadFileType: z.enum(["IMAGE", "VIDEO"]).optional().nullable(),
   categoryId: z.string().uuid("Invalid category ID"),
   tagIds: z
     .array(z.string().uuid("Invalid tag ID"))
@@ -302,8 +300,6 @@ export const rateLimitSchema = z.object({
 // FormData schemas for post server actions.
 // All FormData values arrive as strings; these schemas coerce them
 // to the correct types so actions never need manual string-handling.
-// Safe characters for blur placeholder data URIs (base64 + data URI prefix).
-const BLUR_DATA_PATTERN = /^data:image\/(webp|jpeg|jpg|png|gif|avif);base64,[A-Za-z0-9+/]+=*$/;
 
 // Returns true if the string contains ASCII control characters that shouldn't
 // appear in user-facing text (excludes \t \n \r which are legitimate).
@@ -314,14 +310,6 @@ function hasControlChars(v: string): boolean {
     if ((c <= 8) || c === 11 || c === 12 || (c >= 14 && c <= 31)) return true;
   }
   return false;
-}
-
-// Valid path segment: absolute URL or root-relative path, no traversal.
-function isSafePath(v: string | null): boolean {
-  if (!v) return true;
-  if (v.includes("..")) return false;
-  if (v.includes("\0")) return false;
-  return true;
 }
 
 const postFormBaseSchema = z.object({
@@ -373,49 +361,6 @@ const postFormBaseSchema = z.object({
     .optional()
     .transform((v) => (v ? v.split(",").map((t) => t.trim()).filter(Boolean) : []))
     .refine((v) => v.length <= 20, "Too many tags"),
-  // Path fields: accept absolute URLs (from cloud storage) or root-relative paths.
-  // Reject path traversal, null bytes, and enforce a generous max length.
-  uploadPath: z
-    .string()
-    .max(2048, "uploadPath is too long")
-    .optional()
-    .transform((v) => v || null)
-    .refine(isSafePath, "uploadPath must not contain path traversal sequences"),
-  uploadFileType: z
-    .string()
-    .optional()
-    .transform((v) => (v === "IMAGE" || v === "VIDEO" ? v : null)),
-  // Must be a UUID if present — prevents arbitrary string injection into media table.
-  uploadMediaId: z
-    .string()
-    .optional()
-    .transform((v) => v || null)
-    .refine(
-      (v) => !v || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v),
-      "Invalid media ID"
-    ),
-  previewPath: z
-    .string()
-    .max(2048, "previewPath is too long")
-    .optional()
-    .transform((v) => v || null)
-    .refine(isSafePath, "previewPath must not contain path traversal sequences"),
-  previewVideoPath: z
-    .string()
-    .max(2048, "previewVideoPath is too long")
-    .optional()
-    .transform((v) => v || null)
-    .refine(isSafePath, "previewVideoPath must not contain path traversal sequences"),
-  // blurData must be a safe base64 data URI — it is rendered directly in CSS.
-  blurData: z
-    .string()
-    .max(4096, "blurData is too long")
-    .optional()
-    .transform((v) => v || null)
-    .refine(
-      (v) => !v || BLUR_DATA_PATTERN.test(v),
-      "blurData must be a valid image data URI"
-    ),
   // Checkboxes send "on" when checked, absent when unchecked
   isPublished: z.string().optional().transform((v) => v === "on"),
   isPremium: z.string().optional().transform((v) => v === "on"),

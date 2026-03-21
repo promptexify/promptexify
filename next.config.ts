@@ -80,19 +80,6 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: "/uploads/:path*",
-        headers: [
-          {
-            key: "Cache-Control",
-            value: "public, max-age=31536000, immutable",
-          },
-          {
-            key: "Content-Security-Policy",
-            value: "default-src 'none'; img-src 'self'; media-src 'self';",
-          },
-        ],
-      },
-      {
         source: "/api/:path*",
         headers: [
           {

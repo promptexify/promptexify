@@ -141,12 +141,12 @@ export function SignUpForm() {
   }
 
   return (
-    <div className="space-y-6 max-w-sm">
+    <div className="space-y-6 w-sm max-w-md">
       {/* OAuth Section */}
       <Button
         variant="outline"
         onClick={handleGoogleSignUp}
-        disabled={isGooglePending || isMagicLinkPending || !isReady}
+        disabled={isGooglePending || isMagicLinkPending || !isReady || !turnstileToken}
         className="w-full"
       >
         {isGooglePending ? (
@@ -173,6 +173,11 @@ export function SignUpForm() {
         </div>
       </div>
 
+      <TurnstileWidget
+        onToken={setTurnstileToken}
+        onExpire={() => setTurnstileToken(null)}
+      />
+
       {/* Magic Link Form */}
       <Form {...form}>
         <form
@@ -185,7 +190,7 @@ export function SignUpForm() {
             label="Name (Optional)"
             type="text"
             placeholder="John Doe"
-            disabled={isMagicLinkPending || isGooglePending}
+            disabled={isMagicLinkPending || isGooglePending || !isReady}
           />
 
           <InputForm
@@ -195,20 +200,12 @@ export function SignUpForm() {
             type="email"
             placeholder="you@example.com"
             required
-            disabled={isMagicLinkPending || isGooglePending}
-            description="We'll send you a secure link to create your account and sign in"
-          />
-
-          <TurnstileWidget
-            onSuccess={setTurnstileToken}
-            onExpire={() => setTurnstileToken(null)}
-            onError={() => setTurnstileToken(null)}
-            size="invisible"
+            disabled={isMagicLinkPending || isGooglePending || !isReady}
           />
 
           <Button
             type="submit"
-            disabled={isMagicLinkPending || isGooglePending}
+            disabled={isMagicLinkPending || isGooglePending || !isReady}
             className="w-full"
           >
             {isMagicLinkPending ? (

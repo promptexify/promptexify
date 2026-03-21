@@ -17,23 +17,10 @@ export interface PostWithDetails {
   slug: string;
   description: string | null;
   content?: string; // Optional — list queries exclude content for performance
-  uploadPath: string | null;
-  uploadFileType: "IMAGE" | "VIDEO" | null;
-  previewPath: string | null;
-  previewVideoPath?: string | null;
-  blurData?: string | null; // Optional for now, will be filled in gradually
   isPremium: boolean;
   isFeatured: boolean;
   isPublished: boolean;
   status: string;
-  media: {
-    id: string;
-    mimeType: string;
-    relativePath: string;
-    width?: number | null;
-    height?: number | null;
-  }[];
-
   authorId: string;
   createdAt: Date;
   updatedAt: Date;
@@ -67,6 +54,15 @@ export interface PostWithInteractions extends PostWithDetails {
   isStarred?: boolean;
 }
 
+export async function getPostsForSitemap(): Promise<{ id: string; slug: string; updatedAt: Date }[]> {
+  const rows = await db
+    .select({ id: posts.id, slug: posts.slug, updatedAt: posts.updatedAt })
+    .from(posts)
+    .where(eq(posts.isPublished, true))
+    .orderBy(desc(posts.updatedAt));
+  return rows;
+}
+
 export interface TagWithCount {
   id: string;
   name: string;
@@ -84,7 +80,7 @@ const getPostByIdMemoized = cache(async (id: string) => {
 const getAllPostsMemoized = cache(async (includeUnpublished = false) => {
   const result = await Queries.posts.getPaginated({
     page: 1,
-    limit: 200,
+    limit: 50,
     includeUnpublished,
   });
   return result.data as unknown as PostWithDetails[];

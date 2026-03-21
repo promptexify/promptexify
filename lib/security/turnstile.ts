@@ -39,8 +39,33 @@ export async function verifyTurnstile(
 
     if (!res.ok) return false;
 
-    const data = (await res.json()) as { success: boolean };
-    return data.success === true;
+    const data = (await res.json()) as {
+      success: boolean;
+      hostname?: string;
+      challenge_ts?: string;
+    };
+
+    if (!data.success) return false;
+
+    // Replay prevention: validate the challenge was issued for this hostname.
+    // A valid token from another domain must not grant access here.
+    const rawAppUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "";
+    let expectedHostname = "";
+    try {
+      expectedHostname = new URL(rawAppUrl).hostname;
+    } catch {
+      /* ignore malformed URL */
+    }
+    if (expectedHostname && data.hostname !== expectedHostname) return false;
+
+    // Replay prevention: validate the challenge is recent (within 5 minutes).
+    // Stale tokens could be replayed from previously captured challenges.
+    if (data.challenge_ts) {
+      const challengeAge = Date.now() - new Date(data.challenge_ts).getTime();
+      if (challengeAge > 5 * 60 * 1000) return false;
+    }
+
+    return true;
   } catch (err) {
     console.error("[Turnstile] Verification error:", err);
     return false;

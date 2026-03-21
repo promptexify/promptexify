@@ -26,14 +26,13 @@ Promptexify is a community-driven prompt marketplace for vibe coders — develop
 - **Searchable Library** — Full-text search across titles, descriptions, tags, and categories
 - **Copy-Paste Ready** — No modifications needed; prompts work out of the box
 - **Categories & Tags** — Hierarchical organization for quick discovery
-- **User Authentication** — Sign in with Google or email via Supabase Auth
+- **User Authentication** — Sign in with Google (OAuth + One Tap) or email magic link via Supabase Auth
 - **Personal Collections** — Save and organize your favorite prompts
 - **Community Contributions** — Share your own prompts with the community
 - **Content Moderation** — Draft/approval workflow to maintain quality
 - **Admin Dashboard** — Full content and user management interface
 - **Free to Use** — No payments, no subscriptions, no paywalls
-- **Background Automation** — CSV → posts pipeline via BullMQ + Redis
-- **Flexible Storage** — AWS S3, DigitalOcean Spaces, or local filesystem
+- **Bot Protection** — Cloudflare Turnstile CAPTCHA on all auth and submission flows
 
 ## Tech Stack
 
@@ -41,11 +40,10 @@ Promptexify is a community-driven prompt marketplace for vibe coders — develop
 |-------|-----------|
 | Framework | Next.js 15 (App Router, Turbopack), React 18 |
 | Database | PostgreSQL + Drizzle ORM |
-| Auth | Supabase Auth |
+| Auth | Supabase Auth (OAuth, Magic Link, Google One Tap) |
 | Styling | Tailwind CSS + Shadcn UI |
-| Queue | BullMQ + Redis (in-memory fallback) |
-| Storage | AWS S3 / DigitalOcean Spaces / Local |
-| Security | CSP nonces, CSRF tokens, rate limiting, audit logs |
+| Cache / Rate Limiting | Redis (in-memory fallback) |
+| Security | CSP nonces, CSRF tokens, rate limiting, Turnstile CAPTCHA, audit logs |
 
 ## Getting Started
 
@@ -54,7 +52,6 @@ Promptexify is a community-driven prompt marketplace for vibe coders — develop
 - Node.js 20+
 - Supabase project (PostgreSQL + Auth)
 - Redis (optional in dev — in-memory fallback available)
-- AWS S3 or DigitalOcean Spaces (optional — configured via Admin Dashboard, not env vars)
 
 ### Setup
 
@@ -78,8 +75,6 @@ Promptexify is a community-driven prompt marketplace for vibe coders — develop
    # Fill in your Supabase, database, and Redis credentials
    ```
 
-   > **Storage credentials** (AWS S3 / DigitalOcean access keys) are entered through the Admin Dashboard and stored encrypted in Supabase Vault — do not put them in `.env.local`.
-
 4. **Set up the database**
 
    ```bash
@@ -95,24 +90,24 @@ Promptexify is a community-driven prompt marketplace for vibe coders — develop
 
    Open [http://localhost:3000](http://localhost:3000).
 
-   For content automation (background jobs), start the worker in a separate terminal:
-
-   ```bash
-   npm run worker
-   ```
-
 ### Environment Variables
 
 See `env.template` for the full list. Key variables:
 
-| Variable | Description |
-|----------|-------------|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key |
-| `REDIS_URL` | Redis connection (optional in dev) |
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | Yes | PostgreSQL connection string |
+| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anon key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key (server-side only) |
+| `SUPABASE_JWT_SECRET` | Yes | Supabase JWT secret |
+| `NEXT_PUBLIC_BASE_URL` | Yes | Public URL of the app (e.g. `https://promptexify.com`) |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | No | Google OAuth client ID — enables Google One Tap on the homepage. Must match the client ID configured in Supabase's Google provider. |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | No | Cloudflare Turnstile site key — shows the CAPTCHA widget on auth/submission pages. Omit to skip CAPTCHA in local dev. |
+| `TURNSTILE_SECRET_KEY` | No | Cloudflare Turnstile secret key — used server-side to verify tokens. Required in production when site key is set. |
+| `REDIS_URL` | No | Redis connection URL. Falls back to in-memory when omitted (dev only). |
 
-**No storage environment variables are required.** All storage configuration — provider, bucket, region, and credentials — is managed through the Admin Dashboard (`/dashboard/settings`). Credentials are stored encrypted in Supabase Vault. When no settings row exists yet, the app defaults to local filesystem storage.
+> **Google One Tap + Turnstile:** `NEXT_PUBLIC_GOOGLE_CLIENT_ID` must be the same client ID configured under **Supabase → Authentication → Providers → Google**. One Tap is only shown to unauthenticated users and only after Turnstile passes. The Google OAuth client must have your domain listed under **Authorized JavaScript origins** in Google Cloud Console.
 
 ## Scripts
 
@@ -126,8 +121,6 @@ See `env.template` for the full list. Key variables:
 | `npm run db:push` | Push schema directly (dev only) |
 | `npm run db:studio` | Open Drizzle Studio GUI |
 | `npm run db:seed` | Seed the database |
-| `npm run worker` | Start BullMQ worker |
-| `npm run content:generate` | Run CSV → posts automation |
 | `npm run lint` | Run ESLint |
 | `npm run lint:fix` | Auto-fix ESLint issues |
 | `npm run lint:format` | Format with Prettier |
@@ -152,7 +145,7 @@ app/
     @modal/         # Parallel route: post preview modal
   (protected)/      # Authenticated routes
     dashboard/      # Posts, stars, settings
-  api/              # REST endpoints: posts, admin, upload, webhooks, etc.
+  api/              # REST endpoints: posts, admin, webhooks, etc.
 ```
 
 ### Key Directories
@@ -170,8 +163,7 @@ app/
 ├── drizzle/              # SQL migrations + snapshots
 ├── middleware.ts         # Session, CSP, CSRF, rate limiting
 └── scripts/
-    ├── deploy-db.ts      # Production DB deploy (migrations + RLS + indexes)
-    └── worker.ts         # BullMQ worker (CSV → posts pipeline)
+    └── deploy-db.ts      # Production DB deploy (migrations + RLS + indexes)
 ```
 
 ### Database & Deployment
@@ -189,10 +181,11 @@ Schema changes deploy automatically on every production build — no manual migr
 - **CSP** — Per-request nonces via middleware; passed to components via `x-nonce` header and `csp-nonce` cookie
 - **CSRF** — Token validated by middleware for all mutating calls; server actions wrapped with `withCSRFProtection()`
 - **Rate Limiting** — Redis-backed with in-memory fallback; scoped limits per route type
+- **Turnstile CAPTCHA** — Cloudflare Turnstile on all auth and post submission flows; visible widget on sign-in, sign-up, and post forms; invisible on Google One Tap. All actions are disabled until the challenge passes. Gracefully skipped when `NEXT_PUBLIC_TURNSTILE_SITE_KEY` is not set.
 - **Input Sanitization** — Applied before all DB writes via `lib/security/sanitize.ts`
 - **Audit Logging** — Security events logged to the `logs` table
 - **Row-Level Security** — Postgres RLS policies enforced at the database level
-- **Supabase Vault** — Storage credentials (S3/DO access keys) encrypted at rest via `pgsodium`; never stored in plaintext
+- **Supabase Vault** — Sensitive credentials encrypted at rest via `pgsodium`
 
 ## Contributing
 

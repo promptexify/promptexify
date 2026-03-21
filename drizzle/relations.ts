@@ -1,20 +1,7 @@
 import { relations } from "drizzle-orm/relations";
-import { posts, favorites, users, media, categories, bookmarks, postToTag, tags } from "./schema";
-
-export const favoritesRelations = relations(favorites, ({one}) => ({
-	post: one(posts, {
-		fields: [favorites.postId],
-		references: [posts.id]
-	}),
-	user: one(users, {
-		fields: [favorites.userId],
-		references: [users.id]
-	}),
-}));
+import { posts, users, categories, bookmarks, postToTag, tags } from "./schema";
 
 export const postsRelations = relations(posts, ({one, many}) => ({
-	favorites: many(favorites),
-	media: many(media),
 	bookmarks: many(bookmarks),
 	user: one(users, {
 		fields: [posts.authorId],
@@ -28,16 +15,8 @@ export const postsRelations = relations(posts, ({one, many}) => ({
 }));
 
 export const usersRelations = relations(users, ({many}) => ({
-	favorites: many(favorites),
 	bookmarks: many(bookmarks),
 	posts: many(posts),
-}));
-
-export const mediaRelations = relations(media, ({one}) => ({
-	post: one(posts, {
-		fields: [media.postId],
-		references: [posts.id]
-	}),
 }));
 
 export const categoriesRelations = relations(categories, ({one, many}) => ({

@@ -11,7 +11,6 @@ import {
   tags,
   postToTag,
   stars,
-  media,
 } from "@/lib/db/schema";
 import {
   createCachedFunction,
@@ -63,29 +62,15 @@ export interface PostListTag {
   slug: string;
 }
 
-export interface PostListMedia {
-  id: string;
-  mimeType: string;
-  relativePath: string;
-  width: number | null;
-  height: number | null;
-}
-
 export interface PostListResult {
   id: string;
   title: string;
   slug: string;
   description: string | null;
-  uploadPath: string | null;
-  uploadFileType: "IMAGE" | "VIDEO" | null;
-  previewPath: string | null;
-  previewVideoPath: string | null;
-  blurData: string | null;
   isPremium: boolean;
   isPublished: boolean;
   isFeatured: boolean;
   status: string;
-  media: PostListMedia[];
   authorId: string;
   createdAt: Date;
   updatedAt: Date;
@@ -97,7 +82,6 @@ export interface PostListResult {
 
 export interface PostFullResult extends PostListResult {
   content: string;
-  media: PostListMedia[];
 }
 
 export interface PostWithInteractions extends PostListResult {
@@ -162,42 +146,6 @@ async function getTagsForPostIds(postIds: string[]): Promise<Map<string, PostLis
   for (const r of rows) {
     const list = map.get(r.postId) ?? [];
     list.push({ id: r.id, name: r.name, slug: r.slug });
-    map.set(r.postId, list);
-  }
-  return map;
-}
-
-async function getMediaForPostIds(
-  postIds: string[],
-  listShape: boolean
-): Promise<Map<string, PostListMedia[] | { id: string; mimeType: string; relativePath: string }[]>> {
-  if (postIds.length === 0) return new Map();
-  const rows = await db
-    .select({
-      postId: media.postId,
-      id: media.id,
-      mimeType: media.mimeType,
-      relativePath: media.relativePath,
-      width: media.width,
-      height: media.height,
-    })
-    .from(media)
-    .where(inArray(media.postId, postIds));
-  const map = new Map();
-  for (const r of rows) {
-    if (!r.postId) continue;
-    const list = map.get(r.postId) ?? [];
-    if (listShape) {
-      list.push({
-        id: r.id,
-        mimeType: r.mimeType,
-        relativePath: r.relativePath,
-        width: r.width,
-        height: r.height,
-      });
-    } else {
-      list.push({ id: r.id, mimeType: r.mimeType, relativePath: r.relativePath });
-    }
     map.set(r.postId, list);
   }
   return map;
@@ -270,8 +218,19 @@ export class PostQueries {
       const [rows, countResult] = await Promise.all([
         db
           .select({
-            post: posts,
-            authorId: users.id,
+            postId: posts.id,
+            title: posts.title,
+            slug: posts.slug,
+            description: posts.description,
+            isPremium: posts.isPremium,
+            isFeatured: posts.isFeatured,
+            isPublished: posts.isPublished,
+            status: posts.status,
+            authorId: posts.authorId,
+            categoryId: posts.categoryId,
+            createdAt: posts.createdAt,
+            updatedAt: posts.updatedAt,
+            authorUserId: users.id,
             authorName: users.name,
             authorAvatar: users.avatar,
             authorEmail: users.email,
@@ -300,10 +259,9 @@ export class PostQueries {
       ]);
       const totalCount = Number(countResult[0]?.count ?? 0);
 
-      const postIds = rows.map((r) => r.post.id);
-      const [tagsMap, mediaMap, counts] = await Promise.all([
+      const postIds = rows.map((r) => r.postId);
+      const [tagsMap, counts] = await Promise.all([
         getTagsForPostIds(postIds),
-        getMediaForPostIds(postIds, true),
         getStarCounts(postIds),
       ]);
 
@@ -314,27 +272,20 @@ export class PostQueries {
       }
 
       const data: PostWithInteractions[] = rows.map((r) => {
-        const p = r.post;
         return {
-          id: p.id,
-          title: p.title,
-          slug: p.slug,
-          description: p.description,
-          uploadPath: p.uploadPath,
-          uploadFileType: p.uploadFileType,
-          previewPath: p.previewPath,
-          previewVideoPath: p.previewVideoPath,
-          blurData: p.blurData,
-          isPremium: p.isPremium ?? false,
-          isPublished: p.isPublished ?? false,
-          isFeatured: p.isFeatured ?? false,
-          status: p.status ?? "DRAFT",
-          media: (mediaMap.get(p.id) ?? []) as PostListMedia[],
-          authorId: p.authorId,
-          createdAt: p.createdAt!,
-          updatedAt: p.updatedAt!,
+          id: r.postId,
+          title: r.title,
+          slug: r.slug,
+          description: r.description,
+          isPremium: r.isPremium ?? false,
+          isPublished: r.isPublished ?? false,
+          isFeatured: r.isFeatured ?? false,
+          status: r.status ?? "DRAFT",
+          authorId: r.authorId,
+          createdAt: r.createdAt!,
+          updatedAt: r.updatedAt!,
           author: {
-            id: r.authorId ?? "",
+            id: r.authorUserId ?? "",
             name: r.authorName,
             avatar: r.authorAvatar,
             email: r.authorEmail ?? "",
@@ -347,9 +298,9 @@ export class PostQueries {
               ? { id: r.parentId, name: r.parentName ?? "", slug: r.parentSlug ?? "" }
               : null,
           },
-          tags: tagsMap.get(p.id) ?? [],
-          _count: { stars: counts.get(p.id) ?? 0 },
-          isStarred: userId ? starSet.has(p.id) : false,
+          tags: tagsMap.get(r.postId) ?? [],
+          _count: { stars: counts.get(r.postId) ?? 0 },
+          isStarred: userId ? starSet.has(r.postId) : false,
         };
       });
 
@@ -491,8 +442,19 @@ export class PostQueries {
       const [rows, countResult] = await Promise.all([
         db
           .select({
-            post: posts,
-            authorId: users.id,
+            postId: posts.id,
+            title: posts.title,
+            slug: posts.slug,
+            description: posts.description,
+            isPremium: posts.isPremium,
+            isFeatured: posts.isFeatured,
+            isPublished: posts.isPublished,
+            status: posts.status,
+            authorId: posts.authorId,
+            categoryId: posts.categoryId,
+            createdAt: posts.createdAt,
+            updatedAt: posts.updatedAt,
+            authorUserId: users.id,
             authorName: users.name,
             authorAvatar: users.avatar,
             authorEmail: users.email,
@@ -521,10 +483,9 @@ export class PostQueries {
       ]);
       const totalCount = Number(countResult[0]?.count ?? 0);
 
-      const postIds = rows.map((r) => r.post.id);
-      const [tagsMap, mediaMap, counts] = await Promise.all([
+      const postIds = rows.map((r) => r.postId);
+      const [tagsMap, counts] = await Promise.all([
         getTagsForPostIds(postIds),
-        getMediaForPostIds(postIds, true),
         getStarCounts(postIds),
       ]);
 
@@ -535,35 +496,28 @@ export class PostQueries {
       }
 
       const data: PostWithInteractions[] = rows.map((r) => {
-        const p = r.post;
         return {
-          id: p.id,
-          title: p.title,
-          slug: p.slug,
-          description: p.description,
-          uploadPath: p.uploadPath,
-          uploadFileType: p.uploadFileType,
-          previewPath: p.previewPath,
-          previewVideoPath: p.previewVideoPath,
-          blurData: p.blurData,
-          isPremium: p.isPremium ?? false,
-          isPublished: p.isPublished ?? false,
-          isFeatured: p.isFeatured ?? false,
-          status: p.status ?? "DRAFT",
-          media: (mediaMap.get(p.id) ?? []) as PostListMedia[],
-          authorId: p.authorId,
-          createdAt: p.createdAt!,
-          updatedAt: p.updatedAt!,
-          author: { id: r.authorId ?? "", name: r.authorName, avatar: r.authorAvatar, email: r.authorEmail ?? "" },
+          id: r.postId,
+          title: r.title,
+          slug: r.slug,
+          description: r.description,
+          isPremium: r.isPremium ?? false,
+          isPublished: r.isPublished ?? false,
+          isFeatured: r.isFeatured ?? false,
+          status: r.status ?? "DRAFT",
+          authorId: r.authorId,
+          createdAt: r.createdAt!,
+          updatedAt: r.updatedAt!,
+          author: { id: r.authorUserId ?? "", name: r.authorName, avatar: r.authorAvatar, email: r.authorEmail ?? "" },
           category: {
             id: r.catId ?? "",
             name: r.catName ?? "",
             slug: r.catSlug ?? "",
             parent: r.parentId ? { id: r.parentId, name: r.parentName ?? "", slug: r.parentSlug ?? "" } : null,
           },
-          tags: tagsMap.get(p.id) ?? [],
-          _count: { stars: counts.get(p.id) ?? 0 },
-          isStarred: userId ? starSet.has(p.id) : false,
+          tags: tagsMap.get(r.postId) ?? [],
+          _count: { stars: counts.get(r.postId) ?? 0 },
+          isStarred: userId ? starSet.has(r.postId) : false,
         };
       });
 
@@ -617,8 +571,19 @@ export class PostQueries {
 
       const rows = await db
         .select({
-          post: posts,
-          authorId: users.id,
+          postId: posts.id,
+          title: posts.title,
+          slug: posts.slug,
+          description: posts.description,
+          isPremium: posts.isPremium,
+          isFeatured: posts.isFeatured,
+          isPublished: posts.isPublished,
+          status: posts.status,
+          authorId: posts.authorId,
+          categoryId: posts.categoryId,
+          createdAt: posts.createdAt,
+          updatedAt: posts.updatedAt,
+          authorUserId: users.id,
           authorName: users.name,
           authorAvatar: users.avatar,
           authorEmail: users.email,
@@ -644,10 +609,9 @@ export class PostQueries {
         .orderBy(desc(sql`coalesce(${starCounts.cnt}, 0)`), desc(posts.createdAt))
         .limit(limit);
 
-      const postIds = rows.map((r) => r.post.id);
-      const [tagsMap, mediaMap, counts] = await Promise.all([
+      const postIds = rows.map((r) => r.postId);
+      const [tagsMap, counts] = await Promise.all([
         getTagsForPostIds(postIds),
-        getMediaForPostIds(postIds, true),
         getStarCounts(postIds),
       ]);
 
@@ -658,35 +622,28 @@ export class PostQueries {
       }
 
       return rows.map((r) => {
-        const p = r.post;
         return {
-          id: p.id,
-          title: p.title,
-          slug: p.slug,
-          description: p.description,
-          uploadPath: p.uploadPath,
-          uploadFileType: p.uploadFileType,
-          previewPath: p.previewPath,
-          previewVideoPath: p.previewVideoPath,
-          blurData: p.blurData,
-          isPremium: p.isPremium ?? false,
-          isPublished: p.isPublished ?? false,
-          isFeatured: p.isFeatured ?? false,
-          status: p.status ?? "DRAFT",
-          media: (mediaMap.get(p.id) ?? []) as PostListMedia[],
-          authorId: p.authorId,
-          createdAt: p.createdAt!,
-          updatedAt: p.updatedAt!,
-          author: { id: r.authorId ?? "", name: r.authorName, avatar: r.authorAvatar, email: r.authorEmail ?? "" },
+          id: r.postId,
+          title: r.title,
+          slug: r.slug,
+          description: r.description,
+          isPremium: r.isPremium ?? false,
+          isPublished: r.isPublished ?? false,
+          isFeatured: r.isFeatured ?? false,
+          status: r.status ?? "DRAFT",
+          authorId: r.authorId,
+          createdAt: r.createdAt!,
+          updatedAt: r.updatedAt!,
+          author: { id: r.authorUserId ?? "", name: r.authorName, avatar: r.authorAvatar, email: r.authorEmail ?? "" },
           category: {
             id: r.catId ?? "",
             name: r.catName ?? "",
             slug: r.catSlug ?? "",
             parent: r.parentId ? { id: r.parentId, name: r.parentName ?? "", slug: r.parentSlug ?? "" } : null,
           },
-          tags: tagsMap.get(p.id) ?? [],
-          _count: { stars: counts.get(p.id) ?? 0 },
-          isStarred: userId ? starSet.has(p.id) : false,
+          tags: tagsMap.get(r.postId) ?? [],
+          _count: { stars: counts.get(r.postId) ?? 0 },
+          isStarred: userId ? starSet.has(r.postId) : false,
         };
       });
     } finally {
@@ -711,32 +668,24 @@ export class PostQueries {
       const parentCat =
         (row as { parent_category?: { id: string; name: string; slug: string } | null })
           .parent_category ?? null;
-      const [tagsList, mediaList, counts] = await Promise.all([
+      const [tagsList, counts, starRow] = await Promise.all([
         getTagsForPostIds([p.id]),
-        getMediaForPostIds([p.id], false),
         getStarCounts([p.id]),
+        userId
+          ? db.select().from(stars).where(and(eq(stars.postId, p.id), eq(stars.userId, userId))).limit(1)
+          : Promise.resolve([] as (typeof stars.$inferSelect)[]),
       ]);
-      let isStarred = false;
-      if (userId) {
-        const [starRow] = await db.select().from(stars).where(and(eq(stars.postId, p.id), eq(stars.userId, userId))).limit(1);
-        isStarred = !!starRow;
-      }
+      const isStarred = starRow.length > 0;
       return {
         id: p.id,
         title: p.title,
         slug: p.slug,
         description: p.description,
         content: p.content,
-        uploadPath: p.uploadPath,
-        uploadFileType: p.uploadFileType,
-        previewPath: p.previewPath,
-        previewVideoPath: p.previewVideoPath,
-        blurData: p.blurData,
         isPremium: p.isPremium ?? false,
         isFeatured: p.isFeatured ?? false,
         isPublished: p.isPublished ?? false,
         status: p.status ?? "DRAFT",
-        media: (mediaList.get(p.id) ?? []) as { id: string; mimeType: string; relativePath: string }[],
         authorId: p.authorId,
         createdAt: p.createdAt!,
         updatedAt: p.updatedAt!,
@@ -780,32 +729,24 @@ export class PostQueries {
       const parentCat =
         (row as { parent_category?: { id: string; name: string; slug: string } | null })
           .parent_category ?? null;
-      const [tagsList, mediaList, counts] = await Promise.all([
+      const [tagsList, counts, starRow] = await Promise.all([
         getTagsForPostIds([p.id]),
-        getMediaForPostIds([p.id], false),
         getStarCounts([p.id]),
+        userId
+          ? db.select().from(stars).where(and(eq(stars.postId, p.id), eq(stars.userId, userId))).limit(1)
+          : Promise.resolve([] as (typeof stars.$inferSelect)[]),
       ]);
-      let isStarred = false;
-      if (userId) {
-        const [starRow] = await db.select().from(stars).where(and(eq(stars.postId, p.id), eq(stars.userId, userId))).limit(1);
-        isStarred = !!starRow;
-      }
+      const isStarred = starRow.length > 0;
       return {
         id: p.id,
         title: p.title,
         slug: p.slug,
         description: p.description,
         content: p.content,
-        uploadPath: p.uploadPath,
-        uploadFileType: p.uploadFileType,
-        previewPath: p.previewPath,
-        previewVideoPath: p.previewVideoPath,
-        blurData: p.blurData,
         isPremium: p.isPremium ?? false,
         isFeatured: p.isFeatured ?? false,
         isPublished: p.isPublished ?? false,
         status: p.status ?? "DRAFT",
-        media: (mediaList.get(p.id) ?? []) as { id: string; mimeType: string; relativePath: string }[],
         authorId: p.authorId,
         createdAt: p.createdAt!,
         updatedAt: p.updatedAt!,
@@ -958,19 +899,19 @@ export class MetadataQueries {
   static async getAllTags() {
     const endTimer = DatabaseMetrics.startQuery();
     try {
-      // Single JOIN query replaces two sequential queries
       const rows = await db
         .select({
           id: tags.id,
           name: tags.name,
           slug: tags.slug,
           createdAt: tags.createdAt,
-          postCount: sql<number>`count(case when ${posts.isPublished} = true then 1 end)::int`,
+          postCount: sql<number>`(
+            SELECT count(*)::int FROM "postToTag" pt
+            JOIN posts p ON p.id = pt."A"
+            WHERE pt."B" = ${tags.id} AND p."isPublished" = true
+          )`,
         })
         .from(tags)
-        .leftJoin(postToTag, eq(tags.id, postToTag.B))
-        .leftJoin(posts, eq(postToTag.A, posts.id))
-        .groupBy(tags.id, tags.name, tags.slug, tags.createdAt)
         .orderBy(asc(tags.name));
 
       return rows.map((t) => ({

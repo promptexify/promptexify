@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getAllTags } from "@/lib/content";
 import { db } from "@/lib/db";
 import { tags as tagsTable } from "@/lib/db/schema";
-import { eq, or, ilike } from "drizzle-orm";
+import { eq, or, ilike, asc } from "drizzle-orm";
 import { createTagSchema } from "@/lib/schemas";
 import {
   rateLimits,
@@ -68,10 +68,23 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch tags
-    const tags = await getAllTags();
+    // Support ?q= for searchable tag selector
+    const url = new URL(request.url);
+    const q = url.searchParams.get("q")?.trim();
 
-    return NextResponse.json(tags, {
+    let tagsResult;
+    if (q) {
+      tagsResult = await db
+        .select({ id: tagsTable.id, name: tagsTable.name, slug: tagsTable.slug })
+        .from(tagsTable)
+        .where(ilike(tagsTable.name, `%${q}%`))
+        .orderBy(asc(tagsTable.name))
+        .limit(20);
+    } else {
+      tagsResult = await getAllTags();
+    }
+
+    return NextResponse.json(tagsResult, {
       status: 200,
       headers: {
         ...SECURITY_HEADERS,

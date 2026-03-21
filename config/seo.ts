@@ -4,27 +4,27 @@ import { getBaseUrl } from "@/lib/utils";
 export const seoConfig: Metadata = {
   metadataBase: new URL(getBaseUrl()),
   title: {
-    default:
-      "Promptexify - Directory for the New Coding Era | Cursor, Claude Code",
+    default: "Promptexify — Cursor Rules, MCP, Claude Code Prompts Directory",
     template: "%s | Promptexify",
   },
   description:
-    "Discover and share Rules, MCP (Model Context Protocol), Skills, and prompts for AI coding tools. Optimize Cursor, Claude Code, and other AI code editors with ready-to-use rulesets and prompt templates.",
+    "The largest directory of Cursor rules, MCP configs, Claude Code skills, and AI coding prompts. Find, copy, and share ready-to-use rulesets for your AI coding workflow.",
   keywords: [
-    "AI coding prompts",
     "Cursor rules",
-    "MCP prompts",
-    "AI Skills",
     "Claude Code prompts",
-    "AI code editor prompts",
+    "MCP config",
+    "AI coding prompts",
+    "cursor rules directory",
+    "claude code rules",
+    "model context protocol",
+    "AI Skills",
     "prompt engineering",
-    "Rules for AI",
-    "MCP Model Context Protocol",
-    "AI prompt directory",
+    "AI code editor",
     "prompt library",
+    "cursor ai rules",
+    "claude rules",
     "AI coding tools",
     "prompt templates",
-    "cursor rules directory",
   ],
   authors: [{ name: "Promptexify Team" }],
   creator: "Promptexify",
@@ -44,26 +44,27 @@ export const seoConfig: Metadata = {
     type: "website",
     locale: "en_US",
     url: getBaseUrl(),
-    title: "Promptexify - Directory for the New Coding Era",
+    title: "Promptexify — Cursor Rules, MCP, Claude Code Prompts Directory",
     description:
-      "Rules, MCP, Skills, and prompts for AI coding tools. Optimize Cursor, Claude Code, and AI code editors with ready-to-use rulesets and prompt templates.",
+      "The largest directory of Cursor rules, MCP configs, Claude Code skills, and AI coding prompts. Find and share ready-to-use rulesets.",
     siteName: "Promptexify",
     images: [
       {
         url: "/static/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Promptexify - Directory for the New Coding Era",
+        alt: "Promptexify — Cursor Rules, MCP & Claude Code Prompts Directory",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Promptexify - Directory for the New Coding Era",
+    title: "Promptexify — Cursor Rules, MCP, Claude Code Prompts Directory",
     description:
-      "Directory for the new coding era. Discover Rules, MCP, Skills, and prompts for Cursor, Claude Code, and AI coding tools. Better prompts, better code.",
+      "The largest directory of Cursor rules, MCP configs, Claude Code skills, and AI coding prompts. Better prompts, better code.",
     images: ["/static/og-image.png"],
     creator: "@promptexify",
+    site: "@promptexify",
   },
   icons: {
     icon: "/static/favicon/favicon.ico",
@@ -73,7 +74,7 @@ export const seoConfig: Metadata = {
   manifest: "/static/favicon/site.webmanifest",
 };
 
-// Helper function to set custom metadata with default SEO config
+// Merge custom metadata with the base config
 export function setMetadata(customMetadata: Partial<Metadata> = {}): Metadata {
   return {
     ...seoConfig,
@@ -81,57 +82,70 @@ export function setMetadata(customMetadata: Partial<Metadata> = {}): Metadata {
   };
 }
 
-// SEO configuration for different page types
+// Per-page SEO configurations
 export const pageSEOConfigs = {
   home: {
-    title: "Promptexify - Directory for the New Coding Era",
+    title: "Promptexify — Cursor Rules, MCP & Claude Code Prompts Directory",
     description:
-      "Directory for the new coding era. Discover Rules, MCP, Skills, and prompts for Cursor, Claude Code, and AI coding tools. Better prompts, better code.",
+      "The largest directory of Cursor rules, MCP configs, Claude Code skills, and AI coding prompts. Find and share ready-to-use rulesets for your AI workflow.",
   },
   directory: {
-    title: "Directory",
+    title: "Browse Prompts & Rules Directory",
     description:
-      "Browse Rules, MCP configs, Skills, and prompts for AI coding tools. Cursor, Claude Code, and more.",
+      "Browse thousands of Cursor rules, MCP configs, Claude Code skills, and AI coding prompts. Filter by category, sort by popularity, and copy in one click.",
+  },
+  search: {
+    title: "Search Prompts & Rules",
+    description:
+      "Search thousands of AI coding prompts, Cursor rules, MCP configs, and Claude Code skills. Find the perfect ruleset for your workflow.",
+  },
+  promptGenerator: {
+    title: "AI Prompt Generator",
+    description:
+      "Coming soon: AI-powered prompt generator for Cursor, Claude Code, and other AI coding tools. Create perfect rulesets automatically.",
   },
   features: {
-    title: "Features - Promptexify",
+    title: "Features",
     description:
-      "Directory for the new coding era. Rules, MCP, Skills, and prompt features for Cursor and AI code editors.",
+      "Explore Promptexify features: browse and share Cursor rules, MCP configs, Claude Code skills, and AI coding prompts.",
   },
   help: {
-    title: "Help Center - Promptexify",
-    description: "Get help with subscriptions, content contribution, technical support, and more.",
+    title: "Help Center",
+    description:
+      "Get help with contributing content, using the directory, and getting the most out of Promptexify.",
   },
   about: {
-    title: "About - Promptexify",
+    title: "About Promptexify",
     description:
-      "Learn about Promptexify: directory for the new coding era. Rules, MCP, Skills, and prompts for Cursor, Claude Code, and AI coding tools.",
+      "Promptexify is the community directory for Cursor rules, MCP configs, Claude Code skills, and AI coding prompts. Learn about our mission.",
   },
   contact: {
-    title: "Contact - Promptexify",
-    description: "Get in touch with the Promptexify team for support and inquiries.",
+    title: "Contact Us",
+    description:
+      "Get in touch with the Promptexify team for support, feedback, or partnership inquiries.",
   },
   privacy: {
-    title: "Privacy Policy - Promptexify",
-    description: "Learn how Promptexify collects, uses, and protects your personal information.",
+    title: "Privacy Policy",
+    description:
+      "Learn how Promptexify collects, uses, and protects your personal information.",
   },
   terms: {
-    title: "Terms of Use - Promptexify",
-    description: "Terms and conditions for using Promptexify—directory for the new coding era.",
+    title: "Terms of Use",
+    description:
+      "Terms and conditions for using Promptexify, the directory for Cursor rules, MCP, and AI coding prompts.",
   },
   entry: {
-    title: "Rule / Prompt - Promptexify",
+    title: "Rule / Prompt",
     description:
-      "Rules, MCP, Skills, or prompts for AI coding tools. Use with Cursor, Claude Code, and more.",
+      "Cursor rule, MCP config, Claude Code skill, or AI coding prompt. Copy and use immediately with your AI coding tools.",
   },
 } as const;
 
-// Helper function to get metadata for specific page types
 export function getMetadata(pageType: keyof typeof pageSEOConfigs) {
   return setMetadata(pageSEOConfigs[pageType]);
 }
 
-// Helper function to generate post-specific metadata
+// Dynamic per-post metadata
 export function generatePostMetadata(post: {
   id: string;
   title: string;
@@ -139,74 +153,62 @@ export function generatePostMetadata(post: {
   content?: string | null;
   category?: { name: string } | null;
   tags?: Array<{ name: string }> | null;
-  previewPath?: string | null;
   createdAt?: Date | null;
   updatedAt?: Date | null;
   author?: { name: string | null } | null;
-  isPremium?: boolean;
 }) {
   const baseUrl = getBaseUrl();
-  
-  // Create SEO-friendly title and description
-  const title = post.title;
-  const description = post.description || 
-    (post.content ? 
-      post.content
-        .replace(/^# .+\n\n/, "")
-        .replace(/\n+/g, " ")
-        .substring(0, 150) + "..." 
-      : "Rule or prompt for " + (post.category?.name || "AI coding tools")
-    );
 
-  // Generate keywords from post data
+  const title = post.title;
+  const description =
+    post.description ||
+    (post.content
+      ? post.content
+          .replace(/^#+\s.+\n\n?/, "")
+          .replace(/[`*_#>\[\]]/g, "")
+          .replace(/\n+/g, " ")
+          .trim()
+          .substring(0, 155) + "…"
+      : `${post.category?.name || "AI coding"} rule or prompt — copy and use with Cursor, Claude Code, and more.`);
+
   const keywords = [
-    "AI coding prompt",
-    "Rules",
-    "MCP",
-    "Skills",
     post.category?.name,
-    ...(post.tags?.map(tag => tag.name) || []),
-    "Cursor",
+    ...(post.tags?.map((t) => t.name) ?? []),
+    "Cursor rules",
     "Claude Code",
-    "AI coding tools",
+    "MCP",
+    "AI coding prompt",
     "prompt engineering",
   ].filter(Boolean) as string[];
 
-  // Generate OpenGraph image URL
-  const ogImageUrl = post.previewPath 
-    ? `${baseUrl}${post.previewPath}`
-    : `${baseUrl}/static/og-image.png`;
+  const canonicalUrl = `${baseUrl}/entry/${post.id}`;
+  const ogImage = `${baseUrl}/static/og-image.png`;
 
   return setMetadata({
     title,
     description,
     keywords,
+    alternates: {
+      canonical: canonicalUrl,
+    },
     openGraph: {
       title,
       description,
       type: "article",
-      url: `${baseUrl}/entry/${post.id}`,
-      images: [
-        {
-          url: ogImageUrl,
-          width: 1200,
-          height: 630,
-          alt: title,
-        },
-      ],
+      url: canonicalUrl,
+      siteName: "Promptexify",
+      images: [{ url: ogImage, width: 1200, height: 630, alt: title }],
       publishedTime: post.createdAt?.toISOString(),
       modifiedTime: post.updatedAt?.toISOString(),
       authors: post.author?.name ? [post.author.name] : undefined,
-      tags: post.tags?.map(tag => tag.name) || undefined,
+      tags: post.tags?.map((t) => t.name),
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
-      images: [ogImageUrl],
-    },
-    alternates: {
-      canonical: `${baseUrl}/entry/${post.id}`,
+      images: [ogImage],
+      site: "@promptexify",
     },
     robots: {
       index: true,
@@ -220,4 +222,4 @@ export function generatePostMetadata(post: {
       },
     },
   });
-} 
+}

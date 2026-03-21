@@ -145,7 +145,7 @@ export function SignInForm() {
       <Button
         variant="outline"
         onClick={handleGoogleSignIn}
-        disabled={isGooglePending || isMagicLinkPending || !isReady}
+        disabled={isGooglePending || isMagicLinkPending || !isReady || !turnstileToken}
         className="w-full"
       >
         {isGooglePending ? (
@@ -172,6 +172,11 @@ export function SignInForm() {
         </div>
       </div>
 
+      <TurnstileWidget
+        onToken={setTurnstileToken}
+        onExpire={() => setTurnstileToken(null)}
+      />
+
       {/* Magic Link Form */}
       <Form {...form}>
         <form
@@ -186,14 +191,6 @@ export function SignInForm() {
             placeholder="you@example.com"
             required
             disabled={isMagicLinkPending || isGooglePending || !isReady}
-            description="We'll send you a secure link to sign in"
-          />
-
-          <TurnstileWidget
-            onSuccess={setTurnstileToken}
-            onExpire={() => setTurnstileToken(null)}
-            onError={() => setTurnstileToken(null)}
-            size="invisible"
           />
 
           <Button

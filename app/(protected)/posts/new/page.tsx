@@ -21,7 +21,6 @@ import { ArrowLeft, Info, Loader2 } from "@/components/ui/icons";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { MediaUpload } from "@/components/media-upload";
 import { TagSelector } from "@/components/tag-selector";
 import { createPostAction } from "@/actions";
 import { useAuth } from "@/hooks/use-auth";
@@ -39,34 +38,18 @@ interface Category {
   };
 }
 
-interface Tag {
-  id: string;
-  name: string;
-  slug: string;
-}
-
-
 export default function NewPostPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const { createFormDataWithCSRF, getHeadersWithCSRF, isReady } = useCSRFForm();
   const [categories, setCategories] = useState<Category[]>([]);
-  const [tags, setTags] = useState<Tag[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [postTitle, setPostTitle] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
-  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
-  const [uploadPath, setUploadPath] = useState<string | null>(null);
-  const [uploadFileType, setUploadFileType] = useState<"IMAGE" | "VIDEO" | null>(null);
-  const [uploadMediaId, setUploadMediaId] = useState<string | null>(null);
-  const [previewPath, setPreviewPath] = useState<string | null>(null);
-  const [previewVideoPath, setPreviewVideoPath] = useState<string | null>(null);
-  const [blurData, setBlurData] = useState<string | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [pendingTags, setPendingTags] = useState<string[]>([]);
   const [maxTagsPerPost, setMaxTagsPerPost] = useState<number>(15);
   const [allowUserPosts, setAllowUserPosts] = useState<boolean>(true);
-  const [allowUserUploads, setAllowUserUploads] = useState<boolean>(true);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
 
 
@@ -90,17 +73,15 @@ export default function NewPostPage() {
     }
   }, [user, loading, router, allowUserPosts]);
 
-  // Fetch categories and tags
+  // Fetch categories
   useEffect(() => {
-    async function fetchData() {
+    async function fetchCategories() {
       try {
-        // Fetch categories
         const categoriesRes = await fetch("/api/categories", {
           credentials: "same-origin",
         });
         if (categoriesRes.ok) {
           const categoriesData = await categoriesRes.json();
-          // Ensure categoriesData is an array
           if (Array.isArray(categoriesData)) {
             setCategories(categoriesData);
           } else {
@@ -111,34 +92,14 @@ export default function NewPostPage() {
           console.error("Failed to fetch categories:", categoriesRes.status);
           setCategories([]);
         }
-
-        // Fetch tags
-        const tagsRes = await fetch("/api/tags", {
-          credentials: "same-origin",
-        });
-        if (tagsRes.ok) {
-          const tagsData = await tagsRes.json();
-          // Ensure tagsData is an array
-          if (Array.isArray(tagsData)) {
-            setTags(tagsData);
-          } else {
-            console.error("Tags data is not an array:", tagsData);
-            setTags([]);
-          }
-        } else {
-          console.error("Failed to fetch tags:", tagsRes.status);
-          setTags([]);
-        }
       } catch (error) {
-        console.error("Error fetching data:", error);
-        // Ensure states remain as arrays even on error
+        console.error("Error fetching categories:", error);
         setCategories([]);
-        setTags([]);
       }
     }
 
     if (user?.userData?.role === "ADMIN" || user?.userData?.role === "USER") {
-      fetchData();
+      fetchCategories();
     }
   }, [user]);
 
@@ -156,9 +117,6 @@ export default function NewPostPage() {
           }
           if (typeof data.allowUserPosts === "boolean") {
             setAllowUserPosts(data.allowUserPosts);
-          }
-          if (typeof data.allowUserUploads === "boolean") {
-            setAllowUserUploads(data.allowUserUploads);
           }
         }
       } catch (err) {
@@ -185,17 +143,11 @@ export default function NewPostPage() {
       return;
     }
 
-    if (isUploadingMedia) {
-      toast.error("Please wait for the media to finish uploading.");
-      return;
-    }
-
     setIsSubmitting(true);
 
     try {
       const formData = new FormData(e.currentTarget);
       // First, create any pending tags
-      const createdTags: Tag[] = [];
       const failedTags: string[] = [];
 
       if (pendingTags.length > 0) {
@@ -220,8 +172,7 @@ export default function NewPostPage() {
             });
 
             if (response.ok) {
-              const newTag = await response.json();
-              createdTags.push(newTag);
+              // Tag created successfully
             } else {
               const errorData = await response.json().catch(() => ({}));
 
@@ -231,13 +182,8 @@ export default function NewPostPage() {
                   `Tag "${tagName}" already exists, skipping creation`
                 );
 
-                // Try to find the existing tag in our available tags
-                const existingTag = tags.find(
-                  (t) => t.name.toLowerCase() === tagName.toLowerCase()
-                );
-                if (existingTag) {
-                  createdTags.push(existingTag);
-                }
+                // Tag already exists — no action needed
+                console.log(`Tag "${tagName}" already exists, skipping creation`);
               } else {
                 console.error(`Failed to create tag "${tagName}":`, errorData);
                 failedTags.push(tagName);
@@ -249,17 +195,6 @@ export default function NewPostPage() {
           }
         }
 
-        // Update the tags list with newly created tags
-        if (createdTags.length > 0) {
-          setTags((prevTags) => {
-            const existingTagNames = prevTags.map((t) => t.name.toLowerCase());
-            const newTags = createdTags.filter(
-              (tag) => !existingTagNames.includes(tag.name.toLowerCase())
-            );
-            return [...prevTags, ...newTags];
-          });
-        }
-
         // If there were failed tags, show a warning but still continue
         if (failedTags.length > 0) {
           console.warn(
@@ -269,16 +204,6 @@ export default function NewPostPage() {
             `Some tags could not be created: ${failedTags.join(", ")}`
           );
         }
-      }
-
-      // Add the featured media URLs to form data
-      if (uploadMediaId) {
-        formData.set("uploadMediaId", uploadMediaId);
-        formData.set("uploadPath", uploadPath || "");
-        formData.set("uploadFileType", uploadFileType || "");
-        formData.set("previewPath", previewPath || "");
-        formData.set("previewVideoPath", previewVideoPath || "");
-        formData.set("blurData", blurData || "");
       }
 
       // Add the selected tags to form data
@@ -319,39 +244,6 @@ export default function NewPostPage() {
     } finally {
       setIsSubmitting(false);
     }
-  }
-
-  // Handle successful media upload
-  function handleMediaUploaded(
-    result: {
-      id: string;
-      url: string;
-      relativePath: string;
-      mimeType: string;
-      blurDataUrl?: string;
-      previewPath?: string;
-      previewVideoPath?: string;
-    } | null
-  ) {
-    if (result) {
-      setUploadMediaId(result.id);
-      setUploadPath(result.relativePath);
-      setPreviewPath(result.previewPath || null); // Use preview path from upload response
-      setPreviewVideoPath(result.previewVideoPath || null); // Use preview video path from upload response
-      setBlurData(result.blurDataUrl || null);
-      setUploadFileType(result.mimeType.startsWith("image/") ? "IMAGE" : "VIDEO");
-    } else {
-      setUploadMediaId(null);
-      setUploadPath(null);
-      setPreviewPath(null);
-      setPreviewVideoPath(null);
-      setBlurData(null);
-      setUploadFileType(null);
-    }
-  }
-
-  function handleUploadStateChange(uploading: boolean) {
-    setIsUploadingMedia(uploading);
   }
 
   // Handle tag changes
@@ -417,6 +309,9 @@ export default function NewPostPage() {
   // Get parent categories for main category selection
   const parentCategories = categories.filter((cat) => !cat.parent);
 
+  // Suppress unused variable warning
+  void postTitle;
+
   return (
     <SidebarProvider
       style={
@@ -461,7 +356,6 @@ export default function NewPostPage() {
                       id="title"
                       name="title"
                       placeholder="Enter post title..."
-                      value={postTitle}
                       onChange={handleTitleChange}
                       required
                       maxLength={200}
@@ -512,36 +406,10 @@ export default function NewPostPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Media & Categorization</CardTitle>
+                <CardTitle>Categorization</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4 grid grid-cols-1 md:grid-cols-3 gap-8">
-                {/* Media upload: always shown to admins; shown to users only when allowUserUploads is on */}
-                {(user.userData?.role === "ADMIN" || allowUserUploads) ? (
-                  <div className="space-y-2">
-                    <Label htmlFor="featured-media">Featured Media</Label>
-                    <MediaUpload
-                      onMediaUploaded={handleMediaUploaded}
-                      onUploadStateChange={handleUploadStateChange}
-                      currentUploadPath={uploadPath || undefined}
-                      currentUploadFileType={uploadFileType || undefined}
-                      currentUploadMediaId={uploadMediaId || undefined}
-                      currentPreviewPath={previewPath || undefined}
-                      title={postTitle || "untitled-post"}
-                    />
-                    <p className="text-sm text-muted-foreground">
-                      Upload an image or video to be featured with your post.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <Label>Featured Media</Label>
-                    <div className="p-4 rounded-lg border border-dashed text-sm text-muted-foreground">
-                      Media uploads are not available for user submissions at this time.
-                    </div>
-                  </div>
-                )}
-                <div className="flex gap-4 flex-col col-span-2">
-                  <div className="flex gap-4">
+              <CardContent className="space-y-4">
+                <div className="flex gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="category">Category *</Label>
                     <Select
@@ -583,10 +451,11 @@ export default function NewPostPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  </div>
+                </div>
 
-                  <TagSelector
-                  availableTags={tags}
+                <TagSelector
+                  availableTags={[]}
+                  searchable
                   selectedTags={selectedTags}
                   onTagsChange={handleTagsChange}
                   onPendingTagsChange={handlePendingTagsChange}
@@ -594,9 +463,6 @@ export default function NewPostPage() {
                   maxTags={maxTagsPerPost}
                   disabled={isSubmitting}
                 />
-                </div>
-
-             
               </CardContent>
             </Card>
 
@@ -648,26 +514,19 @@ export default function NewPostPage() {
               </CardContent>
             </Card>
 
-            {/* Hidden form fields for media data */}
-            <input type="hidden" name="uploadPath" value={uploadPath || ""} />
-            <input type="hidden" name="uploadFileType" value={uploadFileType || ""} />
-            <input type="hidden" name="uploadMediaId" value={uploadMediaId || ""} />
-            <input type="hidden" name="previewPath" value={previewPath || ""} />
-            <input type="hidden" name="previewVideoPath" value={previewVideoPath || ""} />
-            <input type="hidden" name="blurData" value={blurData || ""} />
-
-            <TurnstileWidget
-              onSuccess={setTurnstileToken}
-              onExpire={() => setTurnstileToken(null)}
-              onError={() => setTurnstileToken(null)}
-              size="invisible"
-            />
+            <div className="flex justify-end">
+              <TurnstileWidget
+                size="normal"
+                onToken={setTurnstileToken}
+                onExpire={() => setTurnstileToken(null)}
+              />
+            </div>
 
             <div className="flex justify-end gap-4">
               <Button
                 type="submit"
                 className="w-full md:w-auto"
-                disabled={isSubmitting || isUploadingMedia}
+                disabled={isSubmitting || (!!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileToken)}
               >
                 {isSubmitting ? (
                   <>
@@ -682,7 +541,7 @@ export default function NewPostPage() {
                 type="button"
                 variant="outline"
                 asChild
-                disabled={isSubmitting || isUploadingMedia}
+                disabled={isSubmitting}
               >
                 <Link href="/posts">Cancel</Link>
               </Button>

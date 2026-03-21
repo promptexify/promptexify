@@ -1,34 +1,17 @@
 import { NextResponse } from "next/server";
-import { clearMediaCachesAction } from "@/actions/settings";
 import { SECURITY_HEADERS } from "@/lib/security/sanitize";
 import { withCSRFProtection } from "@/lib/security/csp";
 
 /**
  * POST /api/settings/clear-caches
- * Clear all media-related caches manually
+ * No-op endpoint kept for backward compatibility.
+ * Media upload functionality has been removed.
  */
 export const POST = withCSRFProtection(async () => {
-  try {
-    const result = await clearMediaCachesAction();
-
-    if (result.success) {
-      return NextResponse.json(
-        { success: true, message: result.message },
-        { headers: SECURITY_HEADERS }
-      );
-    } else {
-      return NextResponse.json(
-        { success: false, error: result.error },
-        { status: 400, headers: SECURITY_HEADERS }
-      );
-    }
-  } catch (error) {
-    console.error("Error clearing media caches:", error);
-    return NextResponse.json(
-      { success: false, error: "Failed to clear media caches" },
-      { status: 500, headers: SECURITY_HEADERS }
-    );
-  }
+  return NextResponse.json(
+    { success: true, message: "Caches cleared" },
+    { headers: SECURITY_HEADERS }
+  );
 });
 
 // Explicitly deny other HTTP methods
@@ -69,4 +52,4 @@ export async function DELETE() {
       },
     }
   );
-} 
+}

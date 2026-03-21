@@ -8,6 +8,9 @@ import { Queries } from "@/lib/query";
 import { getSettingsAction } from "@/actions/settings";
 import { SafeAsync } from "@/components/ui/safe-async";
 import { Container } from "@/components/ui/container";
+import { getMetadata } from "@/config/seo";
+
+export const metadata = getMetadata("directory");
 
 interface DirectoryPageProps {
   searchParams: Promise<{

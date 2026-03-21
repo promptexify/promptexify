@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/ui/theme";
 import { Toaster } from "@/components/ui/sonner";
 import { headers } from "next/headers";
 import { seoConfig } from "@/config/seo";
+import { getBaseUrl } from "@/lib/utils";
 import dynamic from "next/dynamic";
 
 const GoogleOneTap = dynamic(
@@ -58,6 +59,47 @@ export default async function RootLayout({
         <link rel="manifest" href="/static/favicon/site.webmanifest" />
         <meta name="theme-color" content="#ffffff" />
         <meta name="msapplication-TileColor" content="#ffffff" />
+
+        {/* Structured data — Organization + WebSite with SearchAction */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@graph": [
+                {
+                  "@type": "Organization",
+                  "@id": `${getBaseUrl()}/#organization`,
+                  name: "Promptexify",
+                  url: getBaseUrl(),
+                  logo: {
+                    "@type": "ImageObject",
+                    url: `${getBaseUrl()}/static/og-image.png`,
+                    width: 1200,
+                    height: 630,
+                  },
+                },
+                {
+                  "@type": "WebSite",
+                  "@id": `${getBaseUrl()}/#website`,
+                  url: getBaseUrl(),
+                  name: "Promptexify",
+                  description:
+                    "The largest directory of Cursor rules, MCP configs, Claude Code skills, and AI coding prompts.",
+                  publisher: { "@id": `${getBaseUrl()}/#organization` },
+                  potentialAction: {
+                    "@type": "SearchAction",
+                    target: {
+                      "@type": "EntryPoint",
+                      urlTemplate: `${getBaseUrl()}/search?q={search_term_string}`,
+                    },
+                    "query-input": "required name=search_term_string",
+                  },
+                },
+              ],
+            }),
+          }}
+        />
 
         {/* CSP nonce handling - always set nonce if available */}
         {nonce && (

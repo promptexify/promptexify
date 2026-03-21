@@ -10,7 +10,6 @@ import {
   IconTags,
   IconCategory,
   IconStar,
-  IconRobot,
   IconUserCircle,
   type Icon,
 } from "@/components/ui/icons";
@@ -109,12 +108,6 @@ const navigationData: {
       url: "/tags",
       icon: IconTags,
       adminOnly: true, // Admin only
-    },
-    {
-      title: "Automation",
-      url: "/automation",
-      icon: IconRobot,
-      adminOnly: true,
     },
     {
       title: "Users",

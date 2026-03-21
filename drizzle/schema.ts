@@ -73,41 +73,6 @@ export const favorites = pgTable("favorites", {
 	pgPolicy("Favorites can be viewed by owner or admin", { as: "permissive", for: "select", to: ["authenticated"] }),
 ]);
 
-export const media = pgTable("media", {
-	id: text().primaryKey().notNull(),
-	filename: text().notNull(),
-	relativePath: text().notNull(),
-	originalName: text().notNull(),
-	mimeType: text().notNull(),
-	fileSize: integer().notNull(),
-	width: integer(),
-	height: integer(),
-	duration: doublePrecision(),
-	uploadedBy: text().notNull(),
-	postId: text(),
-	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
-	blurDataUrl: text(),
-}, (table) => [
-	index("media_createdAt_desc_idx").using("btree", table.createdAt.desc().nullsFirst().op("timestamp_ops")),
-	index("media_createdAt_idx").using("btree", table.createdAt.desc().nullsFirst().op("timestamp_ops")),
-	uniqueIndex("media_filename_key").using("btree", table.filename.asc().nullsLast().op("text_ops")),
-	index("media_mimeType_idx").using("btree", table.mimeType.asc().nullsLast().op("text_ops")),
-	index("media_postId_idx").using("btree", table.postId.asc().nullsLast().op("text_ops")),
-	index("media_relativePath_idx").using("btree", table.relativePath.asc().nullsLast().op("text_ops")),
-	index("media_uploadedBy_idx").using("btree", table.uploadedBy.asc().nullsLast().op("text_ops")),
-	foreignKey({
-			columns: [table.postId],
-			foreignColumns: [posts.id],
-			name: "media_postId_fkey"
-		}).onUpdate("cascade").onDelete("set null"),
-	pgPolicy("Media access policy", { as: "permissive", for: "all", to: ["anon", "authenticated"], using: sql`
-CASE
-    WHEN (( SELECT current_setting('request.method'::text, true) AS current_setting) = 'GET'::text) THEN (( SELECT is_admin() AS is_admin) OR ("uploadedBy" = (( SELECT auth.uid() AS uid))::text) OR (("postId" IS NOT NULL) AND can_access_post(("postId")::uuid)))
-    ELSE (( SELECT is_admin() AS is_admin) OR ("uploadedBy" = (( SELECT auth.uid() AS uid))::text))
-END`, withCheck: sql`(( SELECT is_admin() AS is_admin) OR ("uploadedBy" = (( SELECT auth.uid() AS uid))::text))`  }),
-]);
-
 export const categories = pgTable("categories", {
 	id: text().primaryKey().notNull(),
 	name: text().notNull(),

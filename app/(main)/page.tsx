@@ -10,6 +10,9 @@ import { getSettingsAction } from "@/actions/settings";
 import { SafeAsync } from "@/components/ui/safe-async";
 import { FeaturedPostsClient } from "@/components/featured-posts-client";
 import nextDynamic from "next/dynamic";
+import { getMetadata } from "@/config/seo";
+
+export const metadata = getMetadata("home");
 
 const BentoGrid = nextDynamic(
   () => import("@/components/ui/bento-grid").then((m) => ({ default: m.BentoGrid })),

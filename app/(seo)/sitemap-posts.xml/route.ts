@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { withErrorHandling } from "@/lib/db";
-import { getAllPosts } from "@/lib/content";
+import { getPostsForSitemap } from "@/lib/content";
 
 export async function GET(request: NextRequest) {
   const host = request.headers.get("host") || "promptexify.com";
@@ -8,9 +8,9 @@ export async function GET(request: NextRequest) {
   const baseUrl = `${protocol}://${host}`;
 
   try {
-    // Get all published posts for sitemap
+    // Get all published posts for sitemap (lean query — id, slug, updatedAt only)
     const posts = await withErrorHandling(async () => {
-      return await getAllPosts(false); // Only published posts
+      return await getPostsForSitemap();
     }, "Failed to fetch posts for sitemap");
 
     const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
@@ -24,7 +24,7 @@ ${posts
     <loc>${baseUrl}/entry/${post.id}</loc>
     <lastmod>${post.updatedAt.toISOString()}</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>${post.isPremium ? "0.8" : "0.7"}</priority>
+    <priority>0.7</priority>
   </url>`
   )
   .join("\n")}

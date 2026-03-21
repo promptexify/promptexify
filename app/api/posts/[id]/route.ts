@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getPostById } from "@/lib/content";
-import { getPublicUrl } from "@/lib/image/storage";
 import { SECURITY_HEADERS } from "@/lib/security/sanitize";
 import { db } from "@/lib/db";
 import { stars } from "@/lib/db/schema";
@@ -84,12 +83,6 @@ async function handlePostRequest(request: NextRequest, { params }: RouteParams, 
     return NextResponse.json({
       ...post,
       ...interactionStatus,
-      uploadPath: post.uploadPath && post.uploadFileType === "IMAGE"
-        ? await getPublicUrl(post.uploadPath)
-        : null,
-      uploadVideo: post.uploadPath && post.uploadFileType === "VIDEO"
-        ? await getPublicUrl(post.uploadPath)
-        : null,
     }, { headers: SECURITY_HEADERS });
   } catch (error) {
     console.error("Post API error:", error);

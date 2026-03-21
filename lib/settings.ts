@@ -1,80 +1,59 @@
+import { unstable_cache } from "next/cache";
 import { db } from "@/lib/db";
 import { settings } from "@/lib/db/schema";
 import { desc } from "drizzle-orm";
+import { CACHE_DURATIONS, CACHE_TAGS, revalidateCache } from "@/lib/cache";
 
-const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+const SETTINGS_REVALIDATE = CACHE_DURATIONS.POSTS_LIST; // 600s — same order of magnitude as 5 min
 
 // ---------------------------------------------------------------------------
 // maxTagsPerPost
 // ---------------------------------------------------------------------------
-let cachedMaxTagsPerPost: number | null = null;
-let maxTagsExpiry = 0;
+
+const _getMaxTagsPerPost = unstable_cache(
+  async () => {
+    const [row] = await db
+      .select({ maxTagsPerPost: settings.maxTagsPerPost })
+      .from(settings)
+      .orderBy(desc(settings.updatedAt))
+      .limit(1);
+    return row?.maxTagsPerPost ?? 20;
+  },
+  ["settings-max-tags-per-post"],
+  { revalidate: SETTINGS_REVALIDATE, tags: [CACHE_TAGS.POSTS] }
+);
 
 /**
  * Get the current "Max Tags Per Post" value from the Settings table.
  * Falls back to the default (20) when settings are missing.
  */
 export async function getMaxTagsPerPost(): Promise<number> {
-  const now = Date.now();
-  if (cachedMaxTagsPerPost !== null && now < maxTagsExpiry) {
-    return cachedMaxTagsPerPost;
-  }
-  const [row] = await db
-    .select({ maxTagsPerPost: settings.maxTagsPerPost })
-    .from(settings)
-    .orderBy(desc(settings.updatedAt))
-    .limit(1);
-  cachedMaxTagsPerPost = row?.maxTagsPerPost ?? 20;
-  maxTagsExpiry = now + CACHE_DURATION_MS;
-  return cachedMaxTagsPerPost;
+  return _getMaxTagsPerPost();
 }
 
 // ---------------------------------------------------------------------------
-// allowUserPosts / allowUserUploads
+// allowUserPosts
 // ---------------------------------------------------------------------------
-interface ContentFlags {
-  allowUserPosts: boolean;
-  allowUserUploads: boolean;
-}
 
-let cachedContentFlags: ContentFlags | null = null;
-let contentFlagsExpiry = 0;
-
-async function getContentFlags(): Promise<ContentFlags> {
-  const now = Date.now();
-  if (cachedContentFlags !== null && now < contentFlagsExpiry) {
-    return cachedContentFlags;
-  }
-  const [row] = await db
-    .select({
-      allowUserPosts: settings.allowUserPosts,
-      allowUserUploads: settings.allowUserUploads,
-    })
-    .from(settings)
-    .orderBy(desc(settings.updatedAt))
-    .limit(1);
-  cachedContentFlags = {
-    allowUserPosts: row?.allowUserPosts ?? true,
-    allowUserUploads: row?.allowUserUploads ?? true,
-  };
-  contentFlagsExpiry = now + CACHE_DURATION_MS;
-  return cachedContentFlags;
-}
+const _getAllowUserPosts = unstable_cache(
+  async () => {
+    const [row] = await db
+      .select({ allowUserPosts: settings.allowUserPosts })
+      .from(settings)
+      .orderBy(desc(settings.updatedAt))
+      .limit(1);
+    return row?.allowUserPosts ?? true;
+  },
+  ["settings-allow-user-posts"],
+  { revalidate: SETTINGS_REVALIDATE, tags: [CACHE_TAGS.POSTS] }
+);
 
 /** Whether regular users are allowed to submit posts for approval. */
 export async function getAllowUserPosts(): Promise<boolean> {
-  return (await getContentFlags()).allowUserPosts;
-}
-
-/** Whether regular users are allowed to upload images/videos with their posts. */
-export async function getAllowUserUploads(): Promise<boolean> {
-  return (await getContentFlags()).allowUserUploads;
+  return _getAllowUserPosts();
 }
 
 /** Call this after settings are saved so the next request re-reads from DB. */
-export function clearContentFlagsCache() {
-  cachedContentFlags = null;
-  contentFlagsExpiry = 0;
-  cachedMaxTagsPerPost = null;
-  maxTagsExpiry = 0;
+export async function clearContentFlagsCache() {
+  await revalidateCache(CACHE_TAGS.POSTS);
 }

@@ -6,10 +6,9 @@ import {
   categories,
   tags,
   postToTag,
-  media,
 } from "@/lib/db/schema";
 import type { PostStatus } from "@/lib/db/schema";
-import { eq, and, inArray, isNull } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -17,7 +16,7 @@ import { revalidateCache, CACHE_TAGS } from "@/lib/cache";
 import { withCSRFProtection } from "@/lib/security/csp";
 import { verifyTurnstile } from "@/lib/security/turnstile";
 import { headers } from "next/headers";
-import { getAllowUserPosts, getAllowUserUploads } from "@/lib/settings";
+import { getAllowUserPosts } from "@/lib/settings";
 
 import {
   sanitizeInput,
@@ -55,21 +54,9 @@ export const createPostAction = withCSRFProtection(
 
       // Enforce the kill switch for non-admin users
       if (user.role !== "ADMIN") {
-        const [userPostsAllowed, userUploadsAllowed] = await Promise.all([
-          getAllowUserPosts(),
-          getAllowUserUploads(),
-        ]);
+        const userPostsAllowed = await getAllowUserPosts();
         if (!userPostsAllowed) {
           throw new Error("User submissions are currently disabled.");
-        }
-        // Strip upload fields if user uploads are disabled
-        if (!userUploadsAllowed) {
-          formData.delete("uploadPath");
-          formData.delete("uploadFileType");
-          formData.delete("uploadMediaId");
-          formData.delete("previewPath");
-          formData.delete("previewVideoPath");
-          formData.delete("blurData");
         }
       }
 
@@ -91,12 +78,6 @@ export const createPostAction = withCSRFProtection(
         category,
         subcategory,
         tags: tagNames,
-        uploadPath,
-        uploadFileType,
-        uploadMediaId,
-        previewPath,
-        previewVideoPath,
-        blurData,
         isPublished: formIsPublished,
         isPremium,
       } = parsed.data;
@@ -105,12 +86,6 @@ export const createPostAction = withCSRFProtection(
       const title = sanitizeInput(rawTitle);
       const description = rawDescription ? sanitizeInput(rawDescription) : null;
       const content = sanitizeContent(rawContent);
-
-      // Sanitize path fields — strip any HTML/script fragments that slipped through
-      const safeUploadPath = uploadPath ? sanitizeInput(uploadPath) : null;
-      const safePreviewPath = previewPath ? sanitizeInput(previewPath) : null;
-      const safePreviewVideoPath = previewVideoPath ? sanitizeInput(previewVideoPath) : null;
-      // blurData is already validated as a strict base64 data URI by the schema; pass through as-is
 
       // Generate slug if not provided
       const baseSlug =
@@ -187,11 +162,6 @@ export const createPostAction = withCSRFProtection(
             slug,
             description: description || null,
             content,
-            uploadPath: safeUploadPath,
-            uploadFileType: uploadFileType || null,
-            previewPath: safePreviewPath,
-            previewVideoPath: safePreviewVideoPath,
-            blurData: blurData || null,
             isPremium,
             isPublished,
             status,
@@ -209,14 +179,6 @@ export const createPostAction = withCSRFProtection(
         }
         return { newPost: inserted };
       });
-
-      const mediaIds = uploadMediaId ? [uploadMediaId] : [];
-      if (mediaIds.length > 0) {
-        await db
-          .update(media)
-          .set({ postId: newPost.id })
-          .where(and(inArray(media.id, mediaIds), isNull(media.postId)));
-      }
 
       // Revalidate cache tags for new post and tags (since tags may have been created)
       revalidateCache([
@@ -305,12 +267,6 @@ export const updatePostAction = withCSRFProtection(
         category,
         subcategory,
         tags: tagNamesUpdate,
-        uploadPath,
-        uploadFileType,
-        uploadMediaId,
-        previewPath,
-        previewVideoPath,
-        blurData,
         isPublished: formIsPublished,
         isPremium,
       } = parsed.data;
@@ -318,11 +274,6 @@ export const updatePostAction = withCSRFProtection(
       const title = sanitizeInput(rawTitle);
       const description = rawDescription ? sanitizeInput(rawDescription) : null;
       const content = sanitizeContent(rawContent);
-
-      // Sanitize path fields
-      const safeUploadPath = uploadPath ? sanitizeInput(uploadPath) : null;
-      const safePreviewPath = previewPath ? sanitizeInput(previewPath) : null;
-      const safePreviewVideoPath = previewVideoPath ? sanitizeInput(previewVideoPath) : null;
 
       // Generate slug if not provided and ensure uniqueness
       const baseSlug =
@@ -349,21 +300,12 @@ export const updatePostAction = withCSRFProtection(
         if (counter > 1000) throw new Error("Unable to generate unique slug");
       }
 
-      const [postRow] = await db
+      const [existingPost] = await db
         .select()
         .from(posts)
         .where(eq(posts.id, id))
         .limit(1);
-      if (!postRow) throw new Error("Post not found");
-      const mediaRows = await db
-        .select({ id: media.id })
-        .from(media)
-        .where(eq(media.postId, id));
-      const existingPost = { ...postRow, media: mediaRows };
-
-      if (!existingPost) {
-        throw new Error("Post not found");
-      }
+      if (!existingPost) throw new Error("Post not found");
 
       // Check user permissions
       if (user.role === "ADMIN") {
@@ -410,25 +352,6 @@ export const updatePostAction = withCSRFProtection(
         throw new Error("Invalid category");
       }
 
-      // Prepare media updates
-      const newMediaIds = uploadMediaId ? [uploadMediaId] : [];
-      const oldMediaIds = existingPost.media.map((m) => m.id);
-
-      // IDs of media to be disassociated from the post
-      const mediaToUnlink = oldMediaIds.filter(
-        (id) => !newMediaIds.includes(id)
-      );
-
-      // IDs of media to be newly associated with the post
-      const mediaToLink = newMediaIds.filter((id) => !oldMediaIds.includes(id));
-
-      if (mediaToUnlink.length > 0) {
-        await db
-          .update(media)
-          .set({ postId: null })
-          .where(and(inArray(media.id, mediaToUnlink), eq(media.postId, existingPost.id)));
-      }
-
       const newTagNames = tagNamesUpdate.map((t) => sanitizeInput(t)).filter(Boolean);
       const maxTagsPerPostUpdate = await (
         await import("@/lib/settings")
@@ -468,11 +391,6 @@ export const updatePostAction = withCSRFProtection(
           slug,
           description: description ?? null,
           content,
-          uploadPath: safeUploadPath,
-          uploadFileType: uploadFileType || null,
-          previewPath: safePreviewPath,
-          previewVideoPath: safePreviewVideoPath,
-          blurData: blurData || null,
           isPremium,
           isPublished,
           status,
@@ -480,14 +398,6 @@ export const updatePostAction = withCSRFProtection(
           updatedAt: new Date(),
         })
         .where(eq(posts.id, id));
-
-      if (mediaToLink.length > 0) {
-        await db
-          .update(media)
-          .set({ postId: id })
-          .where(and(inArray(media.id, mediaToLink), isNull(media.postId)));
-      }
-
 
       revalidatePath("/posts");
       // Removed entry path revalidation to prevent modal performance issues
@@ -681,33 +591,18 @@ export async function deletePostAction(postId: string) {
       throw new Error("Invalid post ID");
     }
 
-    const [postRow] = await db
+    const [existingPost] = await db
       .select({
         id: posts.id,
         title: posts.title,
         authorId: posts.authorId,
         isPublished: posts.isPublished,
         status: posts.status,
-        uploadPath: posts.uploadPath,
-        uploadFileType: posts.uploadFileType,
-        previewPath: posts.previewPath,
-        previewVideoPath: posts.previewVideoPath,
       })
       .from(posts)
       .where(eq(posts.id, postId))
       .limit(1);
-    if (!postRow) throw new Error("Post not found");
-
-    const mediaRows = await db
-      .select({
-        id: media.id,
-        relativePath: media.relativePath,
-        mimeType: media.mimeType,
-        filename: media.filename,
-      })
-      .from(media)
-      .where(eq(media.postId, postId));
-    const existingPost = { ...postRow, media: mediaRows };
+    if (!existingPost) throw new Error("Post not found");
 
     // Check user permissions
     if (user.role === "ADMIN") {
@@ -730,95 +625,6 @@ export async function deletePostAction(postId: string) {
       }
     } else {
       throw new Error("Unauthorized: Invalid user role");
-    }
-
-    // Delete associated media files from storage before deleting the post
-    const mediaDeletePromises: Promise<boolean>[] = [];
-
-    // Delete media from the Media table
-    for (const media of existingPost.media) {
-      try {
-        // Import storage functions dynamically to avoid circular imports
-        const { deleteImage, deleteVideo, getPublicUrl } = await import("@/lib/image/storage");
-        
-        // Get the full URL for deletion
-        const fullUrl = await getPublicUrl(media.relativePath);
-        
-        if (media.mimeType.startsWith("image/")) {
-          mediaDeletePromises.push(deleteImage(fullUrl));
-        } else if (media.mimeType.startsWith("video/")) {
-          mediaDeletePromises.push(deleteVideo(fullUrl));
-        }
-      } catch (error) {
-        console.error(`Failed to delete media file ${media.relativePath}:`, error);
-        // Continue with other deletions even if one fails
-      }
-    }
-
-    // Delete legacy media files if they exist (uploadPath from post)
-    if (existingPost.uploadPath) {
-      try {
-        const { deleteImage, deleteVideo, getPublicUrl } = await import("@/lib/image/storage");
-        const fullUrl = await getPublicUrl(existingPost.uploadPath);
-        
-        if (existingPost.uploadFileType === "IMAGE") {
-          mediaDeletePromises.push(deleteImage(fullUrl));
-        } else if (existingPost.uploadFileType === "VIDEO") {
-          mediaDeletePromises.push(deleteVideo(fullUrl));
-        }
-      } catch (error) {
-        console.error(`Failed to delete legacy upload file ${existingPost.uploadPath}:`, error);
-      }
-    }
-
-    // Delete preview file if it exists
-    if (existingPost.previewPath) {
-      try {
-        const { deleteImage, getPublicUrl } = await import("@/lib/image/storage");
-        const previewUrl = await getPublicUrl(existingPost.previewPath);
-        mediaDeletePromises.push(deleteImage(previewUrl));
-      } catch (error) {
-        console.error(`Failed to delete preview file ${existingPost.previewPath}:`, error);
-      }
-    }
-
-    // Delete preview video file if it exists
-    if (existingPost.previewVideoPath) {
-      try {
-        const { deleteVideo, getPublicUrl } = await import("@/lib/image/storage");
-        const previewVideoUrl = await getPublicUrl(existingPost.previewVideoPath);
-        mediaDeletePromises.push(deleteVideo(previewVideoUrl));
-      } catch (error) {
-        console.error(`Failed to delete preview video file ${existingPost.previewVideoPath}:`, error);
-      }
-    }
-
-    // Wait for all media deletions to complete (with timeout)
-    if (mediaDeletePromises.length > 0) {
-      try {
-        const results = await Promise.allSettled(mediaDeletePromises);
-        const failedDeletions = results.filter(
-          (result) => result.status === "rejected" || result.value === false
-        ).length;
-
-        if (failedDeletions > 0) {
-          console.warn(
-            `${failedDeletions} out of ${mediaDeletePromises.length} media files failed to delete from storage`
-          );
-        } else {
-          console.log(
-            `Successfully deleted ${mediaDeletePromises.length} media files from storage`
-          );
-        }
-      } catch (error) {
-        console.error("Error during media file deletion:", error);
-        // Continue with post deletion even if media deletion fails
-      }
-    }
-
-    if (existingPost.media.length > 0) {
-      await db.delete(media).where(eq(media.postId, postId));
-      console.log(`Deleted ${existingPost.media.length} media records from database`);
     }
 
     await db.delete(posts).where(eq(posts.id, postId));
@@ -976,105 +782,3 @@ export async function togglePostFeaturedAction(postId: string) {
   }
 }
 
-// Cleanup orphaned media action
-export async function cleanupOrphanedMediaAction(dryRun: boolean = true) {
-  try {
-    const currentUser = await getCurrentUser();
-    if (!currentUser?.userData) {
-      redirect("/signin");
-    }
-
-    // Only admins can run cleanup
-    if (currentUser.userData.role !== "ADMIN") {
-      throw new Error("Unauthorized: Admin access required");
-    }
-
-    // Import cleanup function
-    const { cleanupOrphanedMedia } = await import("@/lib/image/storage");
-    
-    // Run cleanup
-    const result = await cleanupOrphanedMedia(dryRun);
-
-    const message = dryRun
-      ? `Found ${result.orphanedCount} orphaned media files that can be cleaned up`
-      : `Successfully cleaned up ${result.deletedCount} out of ${result.orphanedCount} orphaned media files`;
-
-    // Revalidate relevant paths if actual cleanup was performed
-    if (!dryRun && result.deletedCount > 0) {
-      revalidatePath("/settings");
-      revalidateCache([
-        CACHE_TAGS.POSTS,
-        CACHE_TAGS.POST_BY_ID,
-        CACHE_TAGS.POST_BY_SLUG,
-      ]);
-    }
-
-    return {
-      success: true,
-      message,
-      data: {
-        orphanedCount: result.orphanedCount,
-        deletedCount: result.deletedCount,
-        errors: result.errors,
-        dryRun,
-      },
-    };
-  } catch (error) {
-    console.error("Error in cleanup orphaned media action:", error);
-    throw new Error(
-      error instanceof Error ? error.message : "Failed to cleanup orphaned media"
-    );
-  }
-}
-
-// Cleanup orphaned preview files action
-export async function cleanupOrphanedPreviewFilesAction(dryRun: boolean = true) {
-  try {
-    const currentUser = await getCurrentUser();
-    if (!currentUser?.userData) {
-      redirect("/signin");
-    }
-
-    // Only admins can run cleanup
-    if (currentUser.userData.role !== "ADMIN") {
-      throw new Error("Unauthorized: Admin access required");
-    }
-
-    // Import cleanup function
-    const { cleanupOrphanedPreviewFiles } = await import("@/lib/image/storage");
-    
-    // Run cleanup
-    const result = await cleanupOrphanedPreviewFiles(dryRun);
-
-    const message = dryRun
-      ? `Found ${result.orphanedCount} orphaned preview files that can be cleaned up`
-      : `Successfully cleaned up ${result.deletedCount} out of ${result.orphanedCount} orphaned preview files`;
-
-    // Revalidate relevant paths if actual cleanup was performed
-    if (!dryRun && result.deletedCount > 0) {
-      revalidatePath("/settings");
-      revalidateCache([
-        CACHE_TAGS.POSTS,
-        CACHE_TAGS.POST_BY_ID,
-        CACHE_TAGS.POST_BY_SLUG,
-      ]);
-    }
-
-    return {
-      success: true,
-      message,
-      data: {
-        orphanedCount: result.orphanedCount,
-        deletedCount: result.deletedCount,
-        errors: result.errors,
-        orphanedFiles: result.orphanedFiles,
-        dryRun,
-      },
-    };
-  } catch (error) {
-    console.error("Error in cleanup orphaned preview files action:", error);
-    throw new Error(
-      error instanceof Error ? error.message : "Failed to cleanup orphaned preview files"
-    );
-  }
-}

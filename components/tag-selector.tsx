@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,8 @@ interface TagSelectorProps {
   maxTags?: number;
   disabled?: boolean;
   className?: string;
+  /** When true, fetches tags from /api/tags?q=<input> as the user types instead of using availableTags. */
+  searchable?: boolean;
 }
 
 // Define the banned tag name patterns
@@ -47,21 +49,50 @@ export function TagSelector({
   maxTags = 15,
   disabled = false,
   className,
+  searchable = false,
 }: TagSelectorProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [showAll, setShowAll] = useState(false);
   const [tagValidationError, setTagValidationError] = useState<string | null>(
     null
   );
+  const [remoteTags, setRemoteTags] = useState<Tag[]>([]);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Filter available tags based on search query
+  // When searchable=true, fetch tags from API debounced as user types
+  useEffect(() => {
+    if (!searchable) return;
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(async () => {
+      try {
+        const url = searchQuery.trim()
+          ? `/api/tags?q=${encodeURIComponent(searchQuery.trim())}`
+          : "/api/tags";
+        const res = await fetch(url, { credentials: "same-origin" });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) setRemoteTags(data);
+        }
+      } catch {
+        // silently ignore network errors
+      }
+    }, 300);
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    };
+  }, [searchable, searchQuery]);
+
+  // Use remote tags when searchable, otherwise fall back to prop
+  const effectiveAvailableTags = searchable ? remoteTags : availableTags;
+
+  // Filter available tags based on search query (for non-searchable mode; searchable mode filters via API)
   const filteredAvailableTags = useMemo(() => {
-    if (!searchQuery) return availableTags;
+    if (searchable || !searchQuery) return effectiveAvailableTags;
 
-    return availableTags.filter((tag) =>
+    return effectiveAvailableTags.filter((tag) =>
       tag.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [availableTags, searchQuery]);
+  }, [effectiveAvailableTags, searchQuery, searchable]);
 
   // Display tags (show only first 20 unless "show all" is clicked)
   const displayTags = useMemo(() => {
@@ -70,22 +101,22 @@ export function TagSelector({
 
   // Get selected tag objects (existing tags only)
   const selectedExistingTagObjects = useMemo(() => {
-    return availableTags.filter((tag) => selectedTags.includes(tag.name));
-  }, [availableTags, selectedTags]);
+    return effectiveAvailableTags.filter((tag) => selectedTags.includes(tag.name));
+  }, [effectiveAvailableTags, selectedTags]);
 
   // Get pending tags that are selected but don't exist yet
   const selectedPendingTags = useMemo(() => {
     return selectedTags.filter(
-      (tagName) => !availableTags.some((tag) => tag.name === tagName)
+      (tagName) => !effectiveAvailableTags.some((tag) => tag.name === tagName)
     );
-  }, [selectedTags, availableTags]);
+  }, [selectedTags, effectiveAvailableTags]);
 
   // Check if search query matches existing tag
   const exactMatch = useMemo(() => {
-    return availableTags.find(
+    return effectiveAvailableTags.find(
       (tag) => tag.name.toLowerCase() === searchQuery.toLowerCase()
     );
-  }, [availableTags, searchQuery]);
+  }, [effectiveAvailableTags, searchQuery]);
 
   // Check if search query matches pending tag
   const pendingMatch = useMemo(() => {
@@ -193,7 +224,7 @@ export function TagSelector({
 
         for (const tagName of tagsToAdd) {
           // Check if tag exists in available tags
-          const existingTag = availableTags.find(
+          const existingTag = effectiveAvailableTags.find(
             (tag) => tag.name.toLowerCase() === tagName.toLowerCase()
           );
 
@@ -231,7 +262,7 @@ export function TagSelector({
     [
       selectedTags,
       pendingTags,
-      availableTags,
+      effectiveAvailableTags,
       maxTags,
       isValidTagName,
       onTagsChange,

@@ -76,7 +76,6 @@ export async function updateSession(request: NextRequest) {
     "/posts",
     "/categories",
     "/tags",
-    "/automation",
     "/users",
   ];
   const isProtected = protectedPrefixes.some((p) =>

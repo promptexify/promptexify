@@ -13,7 +13,6 @@ import {
   timestamp,
   boolean,
   integer,
-  real,
   jsonb,
   pgEnum,
   uniqueIndex,
@@ -21,7 +20,6 @@ import {
   pgPolicy,
   primaryKey,
   customType,
-  uuid,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
@@ -48,8 +46,6 @@ export const postStatusEnum = pgEnum("PostStatus", [
   "APPROVED",
   "REJECTED",
 ]);
-export const uploadFileTypeEnum = pgEnum("UploadFileType", ["IMAGE", "VIDEO"]);
-export const storageTypeEnum = pgEnum("StorageType", ["S3", "LOCAL", "DOSPACE"]);
 export const logSeverityEnum = pgEnum("LogSeverity", [
   "LOW",
   "MEDIUM",
@@ -59,7 +55,6 @@ export const logSeverityEnum = pgEnum("LogSeverity", [
 
 // Type aliases for use outside schema
 export type PostStatus = "DRAFT" | "PENDING_APPROVAL" | "APPROVED" | "REJECTED";
-export type StorageType = "S3" | "LOCAL" | "DOSPACE";
 export type LogSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
 // -----------------------------------------------------------------------------
@@ -68,7 +63,7 @@ export type LogSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
 const authUid = sql`auth.uid()::text`;
 const isAdmin = sql`current_user_is_admin()`;
-const OWNER_COLS = new Set(["authorId", "uploadedBy", "userId"]);
+const OWNER_COLS = new Set(["authorId", "userId"]);
 const isOwnerOrAdmin = (col: string) => {
   if (!OWNER_COLS.has(col)) throw new Error(`isOwnerOrAdmin: unknown column "${col}"`);
   return sql.raw(`("${col}" = auth.uid()::text OR current_user_is_admin())`);
@@ -241,11 +236,6 @@ export const posts = pgTable(
     categoryId: text("categoryId").notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().notNull(),
-    blurData: text("blurData"),
-    uploadFileType: uploadFileTypeEnum("uploadFileType"),
-    uploadPath: text("uploadPath"),
-    previewPath: text("previewPath"),
-    previewVideoPath: text("previewVideoPath"),
     // Stored tsvector for GIN-indexed full-text search (maintained by trigger in perf-indexes.sql)
     searchVector: tsvectorType("search_vector"),
   },
@@ -262,6 +252,8 @@ export const posts = pgTable(
     index("posts_author_status_created_idx").on(t.authorId, t.status, t.createdAt),
     // Partial index: covers the most common "published posts by recency" scan path
     index("posts_published_created_partial_idx").on(t.createdAt).where(sql`"isPublished" = true`),
+    // Partial index: fast slug lookups on published posts
+    index("posts_slug_published_idx").on(t.slug).where(sql`"isPublished" = true`),
     // GIN index on stored tsvector for fast full-text search (requires pg_trgm + trigger from perf-indexes.sql)
     index("posts_search_vector_gin_idx").using("gin", t.searchVector),
     // Trigram indexes for ILIKE-based partial matching (require pg_trgm extension)
@@ -426,91 +418,17 @@ export const logs = pgTable(
 ).enableRLS();
 
 // -----------------------------------------------------------------------------
-// Media (read all; insert authenticated; update/delete owner or admin)
-// -----------------------------------------------------------------------------
-
-export const media = pgTable(
-  "media",
-  {
-    id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
-    filename: text("filename").notNull().unique(),
-    relativePath: text("relativePath").notNull(),
-    originalName: text("originalName").notNull(),
-    mimeType: text("mimeType").notNull(),
-    fileSize: integer("fileSize").notNull(),
-    width: integer("width"),
-    height: integer("height"),
-    duration: real("duration"),
-    uploadedBy: text("uploadedBy").notNull(),
-    postId: text("postId"),
-    createdAt: timestamp("createdAt").defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
-    blurDataUrl: text("blurDataUrl"),
-  },
-  (t) => [
-    index("media_relative_path_idx").on(t.relativePath),
-    index("media_post_id_idx").on(t.postId),
-    index("media_uploaded_by_idx").on(t.uploadedBy),
-    index("media_mime_type_idx").on(t.mimeType),
-    index("media_created_at_desc_idx").on(t.createdAt),
-    pgPolicy("media_select_all", {
-      as: "permissive",
-      for: "select",
-      to: "public",
-      using: sql`true`,
-    }),
-    pgPolicy("media_insert_authenticated", {
-      as: "permissive",
-      for: "insert",
-      to: authenticatedRole,
-      withCheck: sql`"uploadedBy" = ${authUid}`,
-    }),
-    pgPolicy("media_update_owner_or_admin", {
-      as: "permissive",
-      for: "update",
-      to: "public",
-      using: sql`${isOwnerOrAdmin("uploadedBy")}`,
-      withCheck: sql`${isOwnerOrAdmin("uploadedBy")}`,
-    }),
-    pgPolicy("media_delete_owner_or_admin", {
-      as: "permissive",
-      for: "delete",
-      to: "public",
-      using: sql`${isOwnerOrAdmin("uploadedBy")}`,
-    }),
-  ]
-).enableRLS();
-
-// -----------------------------------------------------------------------------
-// Settings (admin only; contains secrets like S3 keys)
+// Settings (admin only)
 // -----------------------------------------------------------------------------
 
 export const settings = pgTable(
   "settings",
   {
     id: text("id").primaryKey().default(sql`gen_random_uuid()::text`),
-    storageType: storageTypeEnum("storageType").default("S3").notNull(),
-    s3BucketName: text("s3BucketName"),
-    s3Region: text("s3Region"),
-    s3AccessKeyIdVaultId: uuid("s3AccessKeyIdVaultId"),
-    s3SecretKeyVaultId: uuid("s3SecretKeyVaultId"),
-    s3CloudfrontUrl: text("s3CloudfrontUrl"),
-    doSpaceName: text("doSpaceName"),
-    doRegion: text("doRegion"),
-    doAccessKeyIdVaultId: uuid("doAccessKeyIdVaultId"),
-    doSecretKeyVaultId: uuid("doSecretKeyVaultId"),
-    doCdnUrl: text("doCdnUrl"),
-    localBasePath: text("localBasePath").default("/uploads").notNull(),
-    localBaseUrl: text("localBaseUrl").default("/uploads").notNull(),
-    maxImageSize: integer("maxImageSize").default(2097152).notNull(),
-    maxVideoSize: integer("maxVideoSize").default(10485760).notNull(),
-    enableCompression: boolean("enableCompression").default(true).notNull(),
-    compressionQuality: integer("compressionQuality").default(80).notNull(),
     maxTagsPerPost: integer("maxTagsPerPost").default(20).notNull(),
     enableCaptcha: boolean("enableCaptcha").default(false).notNull(),
     requireApproval: boolean("requireApproval").default(true).notNull(),
     maxPostsPerDay: integer("maxPostsPerDay").default(10).notNull(),
-    maxUploadsPerHour: integer("maxUploadsPerHour").default(20).notNull(),
     enableAuditLogging: boolean("enableAuditLogging").default(true).notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().notNull(),
@@ -518,10 +436,8 @@ export const settings = pgTable(
     postsPageSize: integer("postsPageSize").default(12).notNull(),
     featuredPostsLimit: integer("featuredPostsLimit").default(12).notNull(),
     allowUserPosts: boolean("allowUserPosts").default(true).notNull(),
-    allowUserUploads: boolean("allowUserUploads").default(true).notNull(),
   },
   (t) => [
-    index("settings_storage_type_idx").on(t.storageType),
     index("settings_updated_by_idx").on(t.updatedBy),
     index("settings_created_at_desc_idx").on(t.createdAt),
     index("settings_updated_at_desc_idx").on(t.updatedAt),
@@ -586,17 +502,12 @@ export const postsRelations = relations(posts, ({ one, many }) => ({
     references: [categories.id],
   }),
   stars: many(stars),
-  media: many(media),
   postToTag: many(postToTag),
 }));
 
 export const starsRelations = relations(stars, ({ one }) => ({
   post: one(posts, { fields: [stars.postId], references: [posts.id] }),
   user: one(users, { fields: [stars.userId], references: [users.id] }),
-}));
-
-export const mediaRelations = relations(media, ({ one }) => ({
-  post: one(posts, { fields: [media.postId], references: [posts.id] }),
 }));
 
 export const postToTagRelations = relations(postToTag, ({ one }) => ({

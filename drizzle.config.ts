@@ -16,7 +16,7 @@ export default defineConfig({
   },
   tablesFilter: [
     "users", "categories", "tags", "posts", "post_to_tag",
-    "bookmarks", "favorites", "logs", "media", "settings",
+    "bookmarks", "logs", "settings",
   ],
   entities: {
     roles: {

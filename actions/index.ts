@@ -24,7 +24,6 @@ export {
   deletePostAction,
   approvePostAction,
   rejectPostAction,
-  cleanupOrphanedMediaAction,
 } from "./posts";
 
 // Category management actions
@@ -36,9 +35,6 @@ export {
 
 // Tag management actions
 export { createTagAction, updateTagAction, deleteTagAction } from "./tags";
-
-// Automation actions
-export * from "./automation";
 
 // User profile actions
 export {
@@ -55,7 +51,5 @@ export {
 export {
   getSettingsAction,
   updateSettingsAction,
-  getStorageConfigAction,
   resetSettingsToDefaultAction,
-  clearMediaCachesAction,
 } from "./settings";
