@@ -12,7 +12,7 @@ import { useState, useEffect, useCallback } from "react";
 // - refreshToken() busts the cache and forces a new fetch.
 // ---------------------------------------------------------------------------
 
-const CACHE_DURATION_MS = 23 * 60 * 60 * 1000; // 23 hours
+const CACHE_DURATION_MS = 55 * 60 * 1000; // 55 minutes — safely below the 1-hour server cookie maxAge
 
 let cachedToken: string | null = null;
 let cacheExpiresAt: number | null = null;

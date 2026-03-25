@@ -8,6 +8,10 @@ import { getCurrentUser } from "@/lib/auth";
 import { revalidateCache, CACHE_TAGS } from "@/lib/cache";
 import { PostQueries } from "@/lib/query";
 
+// CSRF: Protected by Next.js's built-in Server Action Origin header check.
+// The framework rejects any Server Action RPC whose Origin doesn't match this
+// deployment. This action accepts StarData (not FormData) so it cannot use
+// withCSRFProtection(). All call sites use startTransition — no raw fetch.
 export async function toggleStarAction(data: StarData) {
   try {
     const validatedData = starSchema.parse(data);

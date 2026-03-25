@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
+import { CSRFProtection } from "@/lib/security/csp";
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
@@ -24,8 +25,22 @@ export async function GET(request: NextRequest) {
         await upsertUserInDatabase(data.user);
       }
 
-      // Redirect to the requested page or dashboard
-      return NextResponse.redirect(`${origin}${next}`);
+      // Issue a fresh CSRF token on login — rotates the pre-login token so
+      // an attacker who obtained the old token cannot reuse it post-auth.
+      const newCsrfToken = CSRFProtection.generateToken();
+      const proto =
+        request.headers.get("x-forwarded-proto") ??
+        (request.url.startsWith("https") ? "https" : "http");
+
+      const redirectResponse = NextResponse.redirect(`${origin}${next}`);
+      redirectResponse.cookies.set(CSRFProtection.getCookieName(), newCsrfToken, {
+        httpOnly: true,
+        secure: proto === "https",
+        sameSite: "strict",
+        path: "/",
+        maxAge: 60 * 60, // 1 hour
+      });
+      return redirectResponse;
     } catch (error) {
       console.error("Callback processing error:", error);
       return NextResponse.redirect(`${origin}/auth/auth-code-error`);

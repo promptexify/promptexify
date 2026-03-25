@@ -374,6 +374,81 @@ export const updatePostFormSchema = postFormBaseSchema.extend({
 export type CreatePostFormData = z.infer<typeof createPostFormSchema>;
 export type UpdatePostFormData = z.infer<typeof updatePostFormSchema>;
 
+// Bulk import schema — each item in a JSON array must include a category slug.
+// Used both client-side (preview validation) and server-side (action validation).
+export const postBulkImportItemSchema = z.object({
+  title: z
+    .string()
+    .min(1, "title is required")
+    .max(200, "title must be 200 characters or less")
+    .trim(),
+  content: z
+    .string()
+    .min(10, "content must be at least 10 characters")
+    .max(50000, "content must be 50,000 characters or less")
+    .trim(),
+  category: z
+    .string()
+    .min(1, "category is required")
+    .regex(/^[a-z0-9-]+$/, "category must be a valid slug (lowercase, hyphens only)"),
+  description: z
+    .string()
+    .max(500, "description must be 500 characters or less")
+    .trim()
+    .optional(),
+  slug: z
+    .string()
+    .max(200, "slug must be 200 characters or less")
+    .regex(
+      /^[a-z0-9-]*$/,
+      "slug can only contain lowercase letters, numbers, and hyphens"
+    )
+    .optional(),
+  tags: z
+    .array(z.string().max(50).trim())
+    .max(20, "maximum 20 tags allowed")
+    .optional()
+    .default([]),
+});
+
+export type PostBulkImportItem = z.infer<typeof postBulkImportItemSchema>;
+
+// JSON import schema — used client-side to validate pasted/dropped JSON before
+// populating the post form. Intentionally more permissive than createPostFormSchema
+// (e.g. no category) because import only fills in the text-level fields.
+export const postImportSchema = z.object({
+  title: z
+    .string()
+    .min(1, "title is required")
+    .max(200, "title must be 200 characters or less")
+    .trim(),
+  content: z
+    .string()
+    .min(10, "content must be at least 10 characters")
+    .max(50000, "content must be 50,000 characters or less")
+    .trim(),
+  description: z
+    .string()
+    .max(500, "description must be 500 characters or less")
+    .trim()
+    .optional(),
+  slug: z
+    .string()
+    .max(200, "slug must be 200 characters or less")
+    .regex(
+      /^[a-z0-9-]*$/,
+      "slug can only contain lowercase letters, numbers, and hyphens"
+    )
+    .optional(),
+  tags: z
+    .array(z.string().max(50, "each tag must be 50 characters or less").trim())
+    .max(20, "maximum 20 tags allowed")
+    .optional()
+    .default([]),
+});
+
+export type PostImportData = z.infer<typeof postImportSchema>;
+
 // Type exports
 export type MagicLinkData = z.infer<typeof magicLinkSchema>;
 export type SignInData = z.infer<typeof signInSchema>;

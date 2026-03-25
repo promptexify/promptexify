@@ -4,13 +4,29 @@ import { unstable_cache } from "next/cache";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+
+// Columns that are safe to return to the authenticated user.
+// Never include Stripe IDs, internal flags, or server-only fields.
+const PUBLIC_USER_FIELDS = {
+  id: users.id,
+  name: users.name,
+  email: users.email,
+  avatar: users.avatar,
+  role: users.role,
+  type: users.type,
+  createdAt: users.createdAt,
+} as const;
 import { SECURITY_HEADERS } from "@/lib/security/sanitize";
 import { CACHE_TAGS, CACHE_DURATIONS } from "@/lib/cache";
 
 const getCachedUserById = (userId: string) =>
   unstable_cache(
     async () => {
-      const [row] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      const [row] = await db
+        .select(PUBLIC_USER_FIELDS)
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
       return row ?? null;
     },
     [`user-profile-${userId}`],

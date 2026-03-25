@@ -19,6 +19,7 @@ import {
   type MagicLinkData,
 } from "@/lib/schemas";
 import { SecurityEvents, getClientIP } from "@/lib/security/audit";
+import { CSRFProtection } from "@/lib/security/csp";
 
 // Primary Magic Link Authentication Function
 export async function signInWithMagicLink(
@@ -58,7 +59,9 @@ export async function signInWithMagicLink(
     });
 
     if (error) {
-      // Log authentication failure
+      // Log the specific reason server-side but return a generic message to the
+      // client — Supabase errors like "User already registered" or "Email rate
+      // limit exceeded" would otherwise allow account enumeration.
       if (request) {
         await SecurityEvents.authenticationFailure(
           undefined,
@@ -66,7 +69,10 @@ export async function signInWithMagicLink(
           error.message
         );
       }
-      return { error: error.message };
+      return {
+        error:
+          "If this email is registered, you will receive a magic link shortly.",
+      };
     }
 
     return {
@@ -100,13 +106,14 @@ export async function signInWithPassword(data: SignInData) {
     });
 
     if (error) {
-      // Log auth failure to audit log for security monitoring
+      // Log the specific reason server-side; return a generic message to the
+      // client to prevent account enumeration via error text.
       await SecurityEvents.authenticationFailure(
         undefined,
         undefined,
         error.message
       ).catch(() => {}); // Non-blocking; don't let audit failure break auth
-      return { error: error.message };
+      return { error: "Invalid email or password." };
     }
 
     if (authData.user) {
@@ -204,11 +211,11 @@ export async function signOut() {
       return { error: error.message };
     }
 
-    // 2. Revalidate all cached data to ensure fresh state
-    revalidatePath("/", "layout");
+    // 2. Invalidate the CSRF token — forces a fresh token on next login
+    await CSRFProtection.clearTokens();
 
-    // 3. Additional cache invalidation for security
-    // This ensures no cached user data remains accessible
+    // 3. Revalidate all cached data to ensure fresh state
+    revalidatePath("/", "layout");
     revalidatePath("/dashboard", "layout");
     revalidatePath("/api", "layout");
 

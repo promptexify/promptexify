@@ -24,7 +24,9 @@ export {
   deletePostAction,
   approvePostAction,
   rejectPostAction,
+  bulkImportPostsAction,
 } from "./posts";
+export type { BulkImportResult } from "./posts";
 
 // Category management actions
 export {

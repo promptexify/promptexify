@@ -24,12 +24,22 @@ export async function updateSession(
           // Recreate response to ensure new cookies propagate
           supabaseResponse = NextResponse.next({ request });
 
-          const isProduction = process.env.NODE_ENV === "production";
+          // Derive `secure` from the actual request protocol rather than
+          // NODE_ENV so that `next start` on plain HTTP works without cookie
+          // rejection, and production behind a TLS terminator (where
+          // x-forwarded-proto is "https") is handled correctly.
+          const proto =
+            request.headers.get("x-forwarded-proto") ??
+            (request.url.startsWith("https") ? "https" : "http");
+          const useSecure = proto === "https";
+
           cookiesToSet.forEach(({ name, value, options }) => {
             supabaseResponse.cookies.set(name, value, {
               ...options,
+              // sameSite: "strict" hardens Supabase's default of "lax" —
+              // do not remove this override.
               sameSite: "strict",
-              secure: isProduction,
+              secure: useSecure,
             });
           });
         },

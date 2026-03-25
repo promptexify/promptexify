@@ -22,10 +22,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { TagSelector } from "@/components/tag-selector";
+import { PostJsonImport } from "@/components/post-json-import";
 import { createPostAction } from "@/actions";
 import { useAuth } from "@/hooks/use-auth";
 import { useCSRFForm } from "@/hooks/use-csrf";
 import { TurnstileWidget } from "@/components/turnstile-widget";
+import type { PostImportData } from "@/lib/schemas";
 
 interface Category {
   id: string;
@@ -45,6 +47,9 @@ export default function NewPostPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [postTitle, setPostTitle] = useState("");
+  const [postSlug, setPostSlug] = useState("");
+  const [postContent, setPostContent] = useState("");
+  const [postDescription, setPostDescription] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [pendingTags, setPendingTags] = useState<string[]>([]);
@@ -256,21 +261,35 @@ export default function NewPostPage() {
     setPendingTags(newPendingTags);
   }
 
-  // Auto-generate slug from title
+  // Populate form from JSON import
+  function handleImport(data: PostImportData) {
+    setPostTitle(data.title);
+    setPostContent(data.content);
+    setPostDescription(data.description ?? "");
+
+    const slug =
+      data.slug ||
+      data.title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+    setPostSlug(slug);
+
+    if (data.tags && data.tags.length > 0) {
+      setSelectedTags(data.tags);
+    }
+  }
+
+  // Auto-generate slug from title (manual typing path)
   function handleTitleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const title = e.target.value;
     setPostTitle(title);
-
-    // Auto-generate slug
-    const slug = title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "");
-
-    const slugInput = document.getElementById("slug") as HTMLInputElement;
-    if (slugInput) {
-      slugInput.value = slug;
-    }
+    setPostSlug(
+      title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+    );
   }
 
   function handleCategoryChange(categorySlug: string) {
@@ -309,9 +328,6 @@ export default function NewPostPage() {
   // Get parent categories for main category selection
   const parentCategories = categories.filter((cat) => !cat.parent);
 
-  // Suppress unused variable warning
-  void postTitle;
-
   return (
     <SidebarProvider
       style={
@@ -325,22 +341,23 @@ export default function NewPostPage() {
       <SidebarInset>
         <SiteHeader />
         <div className="flex flex-1 flex-col gap-4 p-6 lg:p-6">
-          <div className="flex items-center gap-4">
-            <Link href="/posts">
-              <Button variant="outline" size="sm">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                {user.userData?.role === "ADMIN"
-                  ? "Back to Posts"
-                  : "Back to Submissions"}
-              </Button>
-            </Link>
-            <div>
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <Link href="/posts">
+                <Button variant="outline" size="sm">
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  {user.userData?.role === "ADMIN"
+                    ? "Back to Posts"
+                    : "Back to Submissions"}
+                </Button>
+              </Link>
               <p className="text-muted-foreground">
                 {user.userData?.role === "ADMIN"
                   ? "Add a new prompt to your directory."
                   : "Submit a new prompt."}
               </p>
             </div>
+            <PostJsonImport onImport={handleImport} disabled={isSubmitting} />
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -356,6 +373,7 @@ export default function NewPostPage() {
                       id="title"
                       name="title"
                       placeholder="Enter post title..."
+                      value={postTitle}
                       onChange={handleTitleChange}
                       required
                       maxLength={200}
@@ -369,6 +387,8 @@ export default function NewPostPage() {
                       id="slug"
                       name="slug"
                       placeholder="Auto-generated from title"
+                      value={postSlug}
+                      onChange={(e) => setPostSlug(e.target.value)}
                       maxLength={200}
                       pattern="^[a-z0-9\-]*$"
                       title="Lowercase letters, numbers, and hyphens only"
@@ -384,6 +404,8 @@ export default function NewPostPage() {
                     id="content"
                     name="content"
                     placeholder="Enter the prompt content here..."
+                    value={postContent}
+                    onChange={(e) => setPostContent(e.target.value)}
                     rows={8}
                     required
                     maxLength={50000}
@@ -397,6 +419,8 @@ export default function NewPostPage() {
                     id="description"
                     name="description"
                     placeholder="Brief description or instructions for the prompt..."
+                    value={postDescription}
+                    onChange={(e) => setPostDescription(e.target.value)}
                     maxLength={500}
                     disabled={isSubmitting}
                   />

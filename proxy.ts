@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { createServerClient } from "@supabase/ssr";
 import { updateSession } from "./lib/supabase/middleware";
 import { CSPNonce, SecurityHeaders, CSRFProtection } from "@/lib/security/csp";
 import {
@@ -27,12 +28,68 @@ export async function proxy(request: NextRequest) {
     // Prepare request headers for modification
     const requestHeaders = new Headers(request.headers);
 
-    // Forward the middleware-verified user ID so downstream route handlers can
-    // skip their own getUser() call. Always delete first to prevent clients
-    // from forging this header — middleware sets the only authoritative value.
+    // ------------------------------------------------------------------
+    // USER IDENTITY RESOLUTION
+    //
+    // Two authentication paths — exactly one wins per request:
+    //
+    //  A) Cookie session (web browser)
+    //     updateSession() already validated the Supabase JWT via the cookie
+    //     and returned verifiedUserId.
+    //
+    //  B) Bearer token (iOS app / API client)
+    //     Native apps send `Authorization: Bearer <supabase_access_token>`.
+    //     CSRF does NOT apply to bearer-authenticated requests — the browser's
+    //     automatic cookie attachment is the root cause of CSRF, and native
+    //     clients never exhibit that behaviour.
+    //
+    // Always delete x-user-id first so a client can never forge it.
+    // ------------------------------------------------------------------
     requestHeaders.delete("x-user-id");
+
+    // Path A — cookie session (browser)
     if (verifiedUserId) {
       requestHeaders.set("x-user-id", verifiedUserId);
+    }
+
+    // Path B — Bearer token (iOS / API)
+    // Only evaluated when the cookie session produced no userId (avoids
+    // a redundant Supabase network call for normal browser requests).
+    let bearerUserId: string | null = null;
+    const isApiRequest = request.nextUrl.pathname.startsWith("/api/");
+
+    if (!verifiedUserId && isApiRequest) {
+      const authHeader = request.headers.get("authorization");
+      const rawBearer =
+        authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : null;
+
+      if (rawBearer) {
+        try {
+          // Validate the JWT with Supabase using a cookie-less client.
+          // getUser(jwt) performs a server-side check against Supabase's
+          // auth server — it does not trust the JWT's payload alone.
+          const supabase = createServerClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            { cookies: { getAll: () => [], setAll: () => {} } }
+          );
+          const {
+            data: { user },
+          } = await supabase.auth.getUser(rawBearer);
+
+          if (user) {
+            bearerUserId = user.id;
+            // Stamp x-user-id so downstream handlers use the same fast-path
+            // as cookie-authenticated requests.
+            requestHeaders.delete("x-user-id");
+            requestHeaders.set("x-user-id", bearerUserId);
+          }
+        } catch {
+          // Invalid / expired bearer token.
+          // Fall through — the request will fail CSRF validation (if mutating)
+          // or proceed as anonymous (if GET).
+        }
+      }
     }
 
     // Set nonce in headers for Server Components to access
@@ -60,29 +117,34 @@ export async function proxy(request: NextRequest) {
     // Get client IP for logging and rate limiting
     const clientIp = getClientIP(request);
 
-    // For non-GET requests, validate CSRF token (except for auth endpoints and webhooks)
+    // ------------------------------------------------------------------
+    // CSRF VALIDATION
+    //
+    // Applies only to cookie-authenticated (browser) requests.
+    // Bearer-authenticated (iOS / API) requests are exempt — bearer tokens
+    // cannot be forged by a malicious cross-origin page, so the double-submit
+    // pattern adds no security value for them.
+    // ------------------------------------------------------------------
     if (["POST", "PUT", "DELETE", "PATCH"].includes(request.method)) {
       const pathname = request.nextUrl.pathname;
 
-      // Skip CSRF for certain endpoints
-      const skipCSRF = [
-        "/api/webhooks/",
-        "/api/upload/",
-        "/api/media/resolve", // Read-only media URL resolution
-        "/auth/callback",
-        "/api/auth/",
-        // Allow CSP violation reports (no CSRF token sent by browsers)
-        "/api/security/csp-report",
+      // Endpoints that never need CSRF (no cookies involved, or system calls)
+      const skipCSRFPaths = [
+        "/api/webhooks/",   // Signature-verified (e.g. Stripe webhook secret)
+        "/api/media/resolve", // Read-only metadata resolution
+        "/auth/callback",   // OAuth redirect — no session cookie yet
+        "/api/auth/",       // Supabase-managed auth flows
+        "/api/security/csp-report", // Browser-initiated CSP violation reports
+        // NOTE: /api/upload/ was removed when media upload was removed.
+        //       Do not re-add it without also re-adding the route.
       ];
 
-      // Special handling for dynamic routes that should skip CSRF
-      const shouldSkipCSRF = skipCSRF.some((path) =>
-        pathname.startsWith(path)
-      );
+      const pathSkipsCsrf = skipCSRFPaths.some((p) => pathname.startsWith(p));
+      // Bearer-authenticated requests are also exempt (see explanation above)
+      const shouldValidateCSRF =
+        !pathSkipsCsrf && !bearerUserId && pathname.startsWith("/api/");
 
-      const shouldValidateCSRF = !shouldSkipCSRF;
-
-      if (shouldValidateCSRF && pathname.startsWith("/api/")) {
+      if (shouldValidateCSRF) {
         const csrfToken = CSRFProtection.getTokenFromHeaders(request);
 
         if (!csrfToken) {
@@ -92,15 +154,15 @@ export async function proxy(request: NextRequest) {
           );
         }
 
-        // Read CSRF cookie directly from the request object — available here
-        // before server action context, unlike `cookies()` from `next/headers`.
-        const csrfCookieName = CSRFProtection.getCookieName();
+        // Read the CSRF cookie directly from the request (more reliable in
+        // middleware than `cookies()` from `next/headers`).
         const csrfCookieToken =
-          request.cookies.get(csrfCookieName)?.value ||
-          request.cookies.get(CSRFProtection.getBackupCookieName())?.value ||
-          null;
+          request.cookies.get(CSRFProtection.getCookieName())?.value ?? null;
 
-        const isValid = await CSRFProtection.validateToken(csrfToken, csrfCookieToken);
+        const isValid = await CSRFProtection.validateToken(
+          csrfToken,
+          csrfCookieToken
+        );
         if (!isValid) {
           return NextResponse.json(
             { error: "Invalid CSRF token", code: "CSRF_TOKEN_INVALID" },

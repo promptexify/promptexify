@@ -16,7 +16,11 @@ const nextConfig: NextConfig = {
     }
 
     if (!dev && !isServer) {
-      config.devtool = "hidden-source-map";
+      // Do not emit source maps in production — they expose full TypeScript
+      // source to anyone who requests *.js.map from the CDN/server.
+      // Upload maps to your error-monitoring tool (e.g. Sentry) during CI
+      // instead of shipping them with the public bundle.
+      config.devtool = false;
     }
 
     config.ignoreWarnings = [
@@ -90,15 +94,29 @@ const nextConfig: NextConfig = {
           },
           {
             key: "Access-Control-Allow-Methods",
-            value: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+            // Restrict to only the methods the API actually uses cross-origin.
+            // Mutating methods (PUT, PATCH, DELETE) are protected by CSRF and
+            // are not needed by external callers.
+            value: "GET,POST,OPTIONS",
           },
           {
             key: "Access-Control-Allow-Headers",
             value: "Content-Type, Authorization, X-CSRF-Token",
+            // Access-Control-Allow-Credentials intentionally omitted.
+            // The web frontend is same-origin (no cross-origin cookie requests).
+            // iOS clients use Bearer tokens, not cookies. If a credentialed
+            // cross-origin client is ever added, add Allow-Credentials: true
+            // and update the origin allowlist accordingly.
           },
           {
             key: "Access-Control-Max-Age",
             value: "86400",
+          },
+          {
+            key: "Vary",
+            // Required when ACAO is a specific origin (not "*") so CDNs/proxies
+            // do not serve a cached response carrying the wrong origin's CORS headers.
+            value: "Origin",
           },
         ],
       },

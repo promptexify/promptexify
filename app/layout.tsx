@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { headers } from "next/headers";
 import { seoConfig } from "@/config/seo";
 import { getBaseUrl } from "@/lib/utils";
+import { safeJsonLd } from "@/lib/security/sanitize";
 import dynamic from "next/dynamic";
 
 const GoogleOneTap = dynamic(
@@ -64,7 +65,7 @@ export default async function RootLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
+            __html: safeJsonLd({
               "@context": "https://schema.org",
               "@graph": [
                 {

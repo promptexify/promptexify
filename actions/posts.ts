@@ -23,7 +23,43 @@ import {
   sanitizeContent,
   sanitizeTagSlug,
 } from "@/lib/security/sanitize";
-import { createPostFormSchema, updatePostFormSchema } from "@/lib/schemas";
+import {
+  createPostFormSchema,
+  updatePostFormSchema,
+  postBulkImportItemSchema,
+} from "@/lib/schemas";
+import { getMaxTagsPerPost } from "@/lib/settings";
+
+// User-facing messages that are safe to surface verbatim.
+// Everything else gets logged server-side and replaced with a generic message.
+const SAFE_ACTION_MESSAGES = new Set([
+  "CAPTCHA verification failed. Please try again.",
+  "User submissions are currently disabled.",
+  "Invalid form data",
+  "Invalid category",
+  "Unable to generate unique slug",
+  "Post not found",
+  "Post is not pending approval",
+  "Only posts pending approval can be rejected",
+  "Unauthorized: Admin access required",
+  "Unauthorized: You can only edit your own posts",
+  "Unauthorized: You can only delete your own posts",
+  "Cannot edit approved posts. Please contact support for further assistance.",
+  "Cannot edit rejected posts. Please contact support or create a new post.",
+  "Cannot delete approved posts. Once your content has been approved by an admin, it cannot be deleted.",
+  "Cannot delete rejected posts. Once your content has been rejected by an admin, it cannot be deleted.",
+  "Unauthorized: Invalid user role",
+  "A post with this title already exists. Please choose a different title.",
+]);
+
+function toSafeError(error: unknown, fallback: string): Error {
+  if (error instanceof Error && SAFE_ACTION_MESSAGES.has(error.message)) {
+    return error;
+  }
+  // Log the real error server-side but never expose internal details to clients
+  console.error("[ACTION_ERROR]", error);
+  return new Error(fallback);
+}
 
 // Post management actions
 export const createPostAction = withCSRFProtection(
@@ -448,6 +484,10 @@ export const updatePostAction = withCSRFProtection(
 );
 
 // Approve post action
+// CSRF: Protected by Next.js's built-in Server Action Origin header check.
+// The framework rejects any Server Action RPC whose Origin doesn't match this
+// deployment. This action accepts a plain string (not FormData) so it cannot
+// use withCSRFProtection(). All call sites use startTransition — no raw fetch.
 export async function approvePostAction(postId: string) {
   try {
     // Get the current user
@@ -506,14 +546,12 @@ export async function approvePostAction(postId: string) {
       message: `Post "${existingPost.title}" approved and published successfully`,
     };
   } catch (error) {
-    console.error("Error approving post:", error);
-    throw new Error(
-      error instanceof Error ? error.message : "Failed to approve post"
-    );
+    throw toSafeError(error, "Failed to approve post");
   }
 }
 
 // Reject post action
+// CSRF: see approvePostAction comment above — same protection basis applies.
 export async function rejectPostAction(postId: string) {
   try {
     // Ensure we have an authenticated user
@@ -570,14 +608,12 @@ export async function rejectPostAction(postId: string) {
       message: `Post "${existingPost.title}" rejected successfully`,
     } as const;
   } catch (error) {
-    console.error("Error rejecting post:", error);
-    throw new Error(
-      error instanceof Error ? error.message : "Failed to reject post"
-    );
+    throw toSafeError(error, "Failed to reject post");
   }
 }
 
 // Delete post action
+// CSRF: see approvePostAction comment above — same protection basis applies.
 export async function deletePostAction(postId: string) {
   try {
     const currentUser = await getCurrentUser();
@@ -649,14 +685,12 @@ export async function deletePostAction(postId: string) {
       message: `Post "${existingPost.title}" deleted successfully`,
     };
   } catch (error) {
-    console.error("Error deleting post:", error);
-    throw new Error(
-      error instanceof Error ? error.message : "Failed to delete post"
-    );
+    throw toSafeError(error, "Failed to delete post");
   }
 }
 
 // Toggle post publish action
+// CSRF: see approvePostAction comment above — same protection basis applies.
 export async function togglePostPublishAction(postId: string) {
   try {
     const currentUser = await getCurrentUser();
@@ -714,14 +748,12 @@ export async function togglePostPublishAction(postId: string) {
       } successfully`,
     };
   } catch (error) {
-    console.error("Error toggling post publish status:", error);
-    throw new Error(
-      error instanceof Error ? error.message : "Failed to update post status"
-    );
+    throw toSafeError(error, "Failed to update post status");
   }
 }
 
 // Toggle post featured action
+// CSRF: see approvePostAction comment above — same protection basis applies.
 export async function togglePostFeaturedAction(postId: string) {
   try {
     const currentUser = await getCurrentUser();
@@ -773,12 +805,183 @@ export async function togglePostFeaturedAction(postId: string) {
       } successfully`,
     };
   } catch (error) {
-    console.error("Error toggling post featured status:", error);
-    throw new Error(
-      error instanceof Error
-        ? error.message
-        : "Failed to update post featured status"
-    );
+    throw toSafeError(error, "Failed to update post featured status");
   }
 }
 
+// ---------------------------------------------------------------------------
+// Bulk import action — admin only, no Turnstile (admins are authenticated).
+// Accepts a JSON string in formData["posts_json"] containing an array of post
+// objects. Each item is validated server-side with postBulkImportItemSchema.
+// Items with a missing/invalid category are skipped and reported as failures.
+// All posts are created as DRAFT — admin reviews and publishes after import.
+// ---------------------------------------------------------------------------
+export type BulkImportResult = {
+  results: Array<{
+    index: number;
+    title: string;
+    success: boolean;
+    error?: string;
+  }>;
+  created: number;
+  failed: number;
+};
+
+export const bulkImportPostsAction = withCSRFProtection(
+  async (formData: FormData): Promise<BulkImportResult> => {
+    const currentUser = await getCurrentUser();
+    if (!currentUser?.userData || currentUser.userData.role !== "ADMIN") {
+      throw new Error("Unauthorized: Admin access required");
+    }
+    const user = currentUser.userData;
+
+    // Parse JSON payload
+    const postsJson = formData.get("posts_json");
+    if (typeof postsJson !== "string" || !postsJson.trim()) {
+      throw new Error("Missing posts_json field");
+    }
+
+    let rawItems: unknown;
+    try {
+      rawItems = JSON.parse(postsJson);
+    } catch {
+      throw new Error("Invalid JSON payload");
+    }
+    if (!Array.isArray(rawItems)) {
+      throw new Error("Expected a JSON array of posts");
+    }
+    if (rawItems.length === 0) {
+      throw new Error("Array is empty — nothing to import");
+    }
+    if (rawItems.length > 50) {
+      throw new Error("Maximum 50 posts per import");
+    }
+
+    const maxTagsPerPost = await getMaxTagsPerPost();
+    const importResults: BulkImportResult["results"] = [];
+
+    for (let i = 0; i < rawItems.length; i++) {
+      const parsed = postBulkImportItemSchema.safeParse(rawItems[i]);
+      if (!parsed.success) {
+        importResults.push({
+          index: i,
+          title: (rawItems[i] as Record<string, unknown>)?.title as string ?? `Item ${i + 1}`,
+          success: false,
+          error: parsed.error.errors.map((e) => `${e.path.join(".")}: ${e.message}`).join("; "),
+        });
+        continue;
+      }
+
+      const item = parsed.data;
+
+      try {
+        const title = sanitizeInput(item.title);
+        const description = item.description ? sanitizeInput(item.description) : null;
+        const content = sanitizeContent(item.content);
+
+        // Slug with uniqueness guarantee
+        const baseSlug =
+          item.slug ||
+          title.toLowerCase().replace(/\s+/g, "-").replace(/[^\w-]/g, "");
+        let slug = baseSlug;
+        let counter = 1;
+        while (true) {
+          const [existing] = await db
+            .select({ id: posts.id })
+            .from(posts)
+            .where(eq(posts.slug, slug))
+            .limit(1);
+          if (!existing) break;
+          slug = `${baseSlug}-${counter++}`;
+          if (counter > 1000) throw new Error("Unable to generate unique slug");
+        }
+
+        // Category lookup
+        const [categoryRecord] = await db
+          .select()
+          .from(categories)
+          .where(eq(categories.slug, item.category))
+          .limit(1);
+        if (!categoryRecord) {
+          throw new Error(`Category "${item.category}" not found`);
+        }
+
+        // Tags
+        const sanitizedTagNames = (item.tags ?? [])
+          .map((t) => sanitizeInput(t))
+          .filter(Boolean);
+        if (sanitizedTagNames.length > maxTagsPerPost) {
+          throw new Error(`Exceeds max tags per post (${maxTagsPerPost})`);
+        }
+
+        await db.transaction(async (tx) => {
+          const tagIds: string[] = [];
+          for (const tagName of sanitizedTagNames) {
+            const tagSlug = sanitizeTagSlug(tagName);
+            if (!tagSlug) continue;
+            const [row] = await tx
+              .insert(tags)
+              .values({ name: tagName, slug: tagSlug })
+              .onConflictDoUpdate({
+                target: tags.slug,
+                set: { name: tagName, updatedAt: new Date() },
+              })
+              .returning({ id: tags.id });
+            if (row) tagIds.push(row.id);
+          }
+
+          const [inserted] = await tx
+            .insert(posts)
+            .values({
+              title,
+              slug,
+              description,
+              content,
+              isPremium: false,
+              isPublished: false,
+              status: "DRAFT" as PostStatus,
+              authorId: user.id,
+              categoryId: categoryRecord.id,
+            })
+            .returning();
+          if (!inserted) throw new Error("Database insert failed");
+
+          const uniqueTagIds = [...new Set(tagIds)];
+          if (uniqueTagIds.length > 0) {
+            await tx
+              .insert(postToTag)
+              .values(uniqueTagIds.map((B) => ({ A: inserted.id, B })));
+          }
+        });
+
+        importResults.push({ index: i, title: item.title, success: true });
+      } catch (err) {
+        importResults.push({
+          index: i,
+          title: item.title,
+          success: false,
+          error: err instanceof Error ? err.message : "Unknown error",
+        });
+      }
+    }
+
+    // Revalidate once after all items are processed
+    revalidateCache([
+      CACHE_TAGS.POSTS,
+      CACHE_TAGS.POST_BY_SLUG,
+      CACHE_TAGS.POST_BY_ID,
+      CACHE_TAGS.CATEGORIES,
+      CACHE_TAGS.TAGS,
+      CACHE_TAGS.SEARCH_RESULTS,
+      CACHE_TAGS.USER_POSTS,
+      CACHE_TAGS.ANALYTICS,
+    ]);
+    revalidatePath("/posts");
+
+    return {
+      results: importResults,
+      created: importResults.filter((r) => r.success).length,
+      failed: importResults.filter((r) => !r.success).length,
+    };
+  }
+);

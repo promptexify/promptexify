@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     secure,
     sameSite: "strict",
     path: "/",
-    maxAge: 60 * 60 * 24,
+    maxAge: 60 * 60, // 1 hour — matches server-side token lifetime
   });
 
   return response;

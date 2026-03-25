@@ -46,10 +46,11 @@ export async function GET(request: NextRequest) {
   let currentUser = null;
   let userId: string | undefined;
   
-  // Add detailed request logging for debugging
-  const requestUrl = request.url;
-  const userAgent = request.headers.get("user-agent");
-  console.log(`[POSTS-API] Request: ${requestUrl} from ${userAgent?.substring(0, 50)}...`);
+  // Debug logging — path only (no query string, no user agent) to avoid
+  // logging user search terms and browser fingerprints in production.
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`[POSTS-API] ${request.nextUrl.pathname}`);
+  }
   
   try {
     // Get current user for bookmark/favorite status with error handling

@@ -221,8 +221,8 @@ async function PostsManagementContent({
 
     const isFeatured: boolean | undefined =
       isAdmin && filters.featured === "featured" ? true
-      : isAdmin && filters.featured && filters.featured !== "all" ? false
-      : undefined;
+        : isAdmin && filters.featured && filters.featured !== "all" ? false
+          : undefined;
 
     const statusFilter =
       filters.status && filters.status !== "all"
@@ -248,11 +248,11 @@ async function PostsManagementContent({
 
     const filteredPosts = filters.sortBy === "oldest"
       ? [...postsResult.data].sort(
-          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-        )
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      )
       : filters.sortBy === "title"
-      ? [...postsResult.data].sort((a, b) => a.title.localeCompare(b.title))
-      : postsResult.data;
+        ? [...postsResult.data].sort((a, b) => a.title.localeCompare(b.title))
+        : postsResult.data;
 
     const totalCount = postsResult.pagination.totalCount;
     const totalPages = postsResult.pagination.totalPages;
@@ -327,96 +327,96 @@ async function PostsManagementContent({
                           </div>
                         </div>
                       </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Badge variant="secondary" className="text-xs">
-                          {post.category.parent?.name || post.category.name}
-                        </Badge>
-                        {post.category.parent && (
-                          <Badge variant="outline" className="text-xs">
-                            {post.category.name}
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Badge variant="secondary" className="text-xs">
+                            {post.category.parent?.name || post.category.name}
                           </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-row gap-1">
-                        {post.status === "APPROVED" ||
-                        (post.isPublished &&
-                          post.status !== "PENDING_APPROVAL") ? (
+                          {post.category.parent && (
+                            <Badge variant="outline" className="text-xs">
+                              {post.category.name}
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-row gap-1">
+                          {post.status === "APPROVED" ||
+                            (post.isPublished &&
+                              post.status !== "PENDING_APPROVAL") ? (
+                            <Badge
+                              variant="outline"
+                              className="text-xs border-green-500 text-green-700 dark:text-green-400"
+                            >
+                              <IconCircleCheckFilled className="mr-1 h-3 w-3 fill-green-500 dark:fill-green-400" />
+                              Published
+                            </Badge>
+                          ) : post.status === "PENDING_APPROVAL" ? (
+                            <Badge
+                              variant="outline"
+                              className="text-xs border-yellow-500 text-yellow-700 dark:text-yellow-400"
+                            >
+                              <IconLoader className="mr-1 h-3 w-3 fill-yellow-500 dark:fill-yellow-400" />
+                              Pending Review
+                            </Badge>
+                          ) : post.status === "REJECTED" ? (
+                            <Badge
+                              variant="outline"
+                              className="text-xs border-red-500/50 text-red-700/50 dark:border-red-400/50 dark:text-red-200"
+                            >
+                              <IconX className="mr-1 h-3 w-3" />
+                              Rejected
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs">
+                              Draft
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center">
                           <Badge
-                            variant="outline"
-                            className="text-xs border-green-500 text-green-700 dark:text-green-400"
+                            variant={post.isPremium ? "default" : "outline"}
+                            className={
+                              post.isPremium
+                                ? "text-xs bg-gradient-to-r from-zinc-200 to-zinc-300 dark:from-zinc-300 dark:to-zinc-400"
+                                : "text-xs"
+                            }
                           >
-                            <IconCircleCheckFilled className="mr-1 h-3 w-3 fill-green-500 dark:fill-green-400" />
-                            Published
+                            {post.isPremium ? (
+                              <IconCrown className="h-3 w-3" />
+                            ) : (
+                              "Free"
+                            )}
                           </Badge>
-                        ) : post.status === "PENDING_APPROVAL" ? (
-                          <Badge
-                            variant="outline"
-                            className="text-xs border-yellow-500 text-yellow-700 dark:text-yellow-400"
-                          >
-                            <IconLoader className="mr-1 h-3 w-3 fill-yellow-500 dark:fill-yellow-400" />
-                            Pending Review
-                          </Badge>
-                        ) : post.status === "REJECTED" ? (
-                          <Badge
-                            variant="outline"
-                            className="text-xs border-red-500/50 text-red-700/50 dark:border-red-400/50 dark:text-red-200"
-                          >
-                            <IconX className="mr-1 h-3 w-3" />
-                            Rejected
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {post.isFeatured ? (
+                          <Badge variant="secondary" className="text-xs">
+                            Yes
                           </Badge>
                         ) : (
-                          <Badge variant="outline" className="text-xs">
-                            Draft
+                          <Badge variant="secondary" className="text-xs">
+                            <IconX className="h-3 w-3" />
                           </Badge>
                         )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center">
-                        <Badge
-                          variant={post.isPremium ? "default" : "outline"}
-                          className={
-                            post.isPremium
-                              ? "text-xs bg-gradient-to-r from-zinc-200 to-zinc-300 dark:from-zinc-300 dark:to-zinc-400"
-                              : "text-xs"
-                          }
-                        >
-                          {post.isPremium ? (
-                            <IconCrown className="h-3 w-3" />
-                          ) : (
-                            "Free"
-                          )}
-                        </Badge>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {post.isFeatured ? (
-                        <Badge variant="secondary" className="text-xs">
-                          Yes
-                        </Badge>
-                      ) : (
-                        <Badge variant="secondary" className="text-xs">
-                          <IconX className="h-3 w-3" />
-                        </Badge>
-                      )}
-                    </TableCell>
+                      </TableCell>
 
-                    <TableCell>
-                      {new Date(post.createdAt).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell>
-                      <PostActionsDropdown
-                        post={post}
-                        currentUserId={user.id}
-                        currentUserRole={user.role ?? undefined}
-                      />
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
+                      <TableCell>
+                        {new Date(post.createdAt).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>
+                        <PostActionsDropdown
+                          post={post}
+                          currentUserId={user.id}
+                          currentUserRole={user.role ?? undefined}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
 
@@ -484,7 +484,7 @@ async function PostsManagementContent({
     );
   } catch (error) {
     console.error("Error loading posts:", error);
-    
+
     return (
       <>
         {/* Error state card */}
@@ -504,8 +504,8 @@ async function PostsManagementContent({
               <p>• Try refreshing the page</p>
               <p>• If the problem persists, contact support</p>
             </div>
-            <Button 
-              onClick={() => window.location.reload()} 
+            <Button
+              onClick={() => window.location.reload()}
               variant="outline"
               className="w-full sm:w-auto"
             >
@@ -538,20 +538,29 @@ export default async function PostsManagementPage({
       <SidebarInset>
         <SiteHeader />
         <div className="flex flex-1 flex-col gap-4 p-6 lg:p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-muted-foreground">
-                {user.userData?.role === "ADMIN"
-                  ? "Manage your content posts, create new prompts, and organize your directory."
-                  : "Submit new prompts and manage your submissions."}
-              </p>
+          <div className="flex items-center justify-end">
+            <p className="text-muted-foreground flex-1">
+              {user.userData?.role === "ADMIN"
+                ? "Manage your content posts, create new prompts, and organize your directory."
+                : "Submit new prompts and manage your submissions."}
+            </p>
+            <div className="flex items-end gap-2">
+
+              {user.userData?.role === "ADMIN" && (
+                <Link href="/posts/import">
+                  <Button variant="outline">
+                    Bulk Import
+                  </Button>
+                </Link>
+              )}
+              <Link href="/posts/new">
+                <Button>
+                  <Plus className="mr-1 h-4 w-4" />
+                  {user.userData?.role === "ADMIN" ? "New Post" : "Create"}
+                </Button>
+              </Link>
             </div>
-            <Link href="/posts/new">
-              <Button>
-                <Plus className="mr-1 h-4 w-4" />
-                {user.userData?.role === "ADMIN" ? "New Post" : "Create"}
-              </Button>
-            </Link>
+
           </div>
 
           <Suspense fallback={<LoadingSkeleton />}>

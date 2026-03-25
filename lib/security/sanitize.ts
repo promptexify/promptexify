@@ -755,6 +755,25 @@ function getSecurityHeaders() {
  */
 export const SECURITY_HEADERS = getSecurityHeaders();
 
+/**
+ * Safely serialize an object as JSON for embedding inside an HTML <script> tag.
+ *
+ * JSON.stringify does NOT escape <, >, /, or & — all of which can break out of
+ * a <script> context when the output is placed inside dangerouslySetInnerHTML.
+ * For example, a value containing "</script>" would close the tag and allow
+ * arbitrary HTML/JS injection.
+ *
+ * This function escapes those four characters to their Unicode escape sequences,
+ * which are valid JSON and safe in all HTML contexts.
+ */
+export function safeJsonLd(obj: unknown): string {
+  return JSON.stringify(obj)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026")
+    .replace(/'/g, "\\u0027");
+}
+
 
 
 /**

@@ -1,25 +1,11 @@
 import { NextResponse } from "next/server";
 import { diagnoseOrphanedSubscriptions } from "@/lib/subscription";
-import { getCurrentUser } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 
 export async function GET() {
   try {
-    // Check if user is authenticated and is an admin
-    const user = await getCurrentUser();
-
-    if (!user) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
-    }
-
-    if (user.role !== "ADMIN") {
-      return NextResponse.json(
-        { error: "Admin access required" },
-        { status: 403 }
-      );
-    }
+    // requireAdmin() redirects to /dashboard if not an authenticated admin
+    await requireAdmin();
 
     // Run the orphaned subscription diagnosis
     const result = await diagnoseOrphanedSubscriptions();

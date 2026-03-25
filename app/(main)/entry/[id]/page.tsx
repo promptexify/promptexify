@@ -9,6 +9,7 @@ import { PostStandalonePage } from "@/components/post-standalone-page";
 import { getCurrentUser } from "@/lib/auth";
 import { generatePostMetadata, setMetadata } from "@/config/seo";
 import { getBaseUrl } from "@/lib/utils";
+import { safeJsonLd } from "@/lib/security/sanitize";
 import type { Metadata } from "next";
 
 interface PostPageProps {
@@ -111,7 +112,7 @@ export default async function PostPage({ params, searchParams }: PostPageProps) 
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(articleJsonLd) }}
       />
       <PostStandalonePage
         post={processedPost}

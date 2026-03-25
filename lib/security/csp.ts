@@ -21,53 +21,41 @@ export class CSRFProtection {
   }
 
   /**
-   * Set CSRF token in secure cookie with improved reliability
+   * Set CSRF token in a single httpOnly cookie.
+   *
+   * maxAge is 1 hour — intentionally shorter than the previous 24 h lifetime.
+   * Tokens are rotated on every login (auth/callback) and cleared on logout,
+   * so a 1 h window is sufficient for active sessions and minimises the blast
+   * radius if a token is somehow leaked.
+   *
+   * @param secure - Explicit value for the cookie `secure` flag. When omitted,
+   *   falls back to `NODE_ENV === "production"`. Call sites that have access to
+   *   the request (e.g. Route Handlers) should derive this from
+   *   `x-forwarded-proto` and pass it explicitly for consistency with how
+   *   proxy.ts and app/api/csrf/route.ts set cookies.
    */
-  static async setToken(token: string): Promise<void> {
-    try {
-      const { cookies } = await import("next/headers");
-      const cookieStore = await cookies();
-      const isProduction = process.env.NODE_ENV === "production";
+  static async setToken(token: string, secure?: boolean): Promise<void> {
+    const { cookies } = await import("next/headers");
+    const cookieStore = await cookies();
+    const useSecure = secure ?? (process.env.NODE_ENV === "production");
 
-      // Use more reliable cookie options
-      const cookieOptions = {
-        httpOnly: true,
-        secure: isProduction,
-        sameSite: "strict" as const,
-        path: "/",
-        maxAge: 60 * 60 * 24, // 24 hours
-      };
-
-      // Set primary cookie
-      cookieStore.set(this.CSRF_COOKIE_NAME, token, cookieOptions);
-
-      // Set backup cookie for reliability (with different name)
-      const backupCookieName = `${this.CSRF_COOKIE_NAME}-backup`;
-      cookieStore.set(backupCookieName, token, cookieOptions);
-    } catch (error) {
-      console.error("[CSRF] Failed to set token:", error);
-      throw error;
-    }
+    cookieStore.set(this.CSRF_COOKIE_NAME, token, {
+      httpOnly: true,
+      secure: useSecure,
+      sameSite: "strict",
+      path: "/",
+      maxAge: 60 * 60, // 1 hour — rotated on auth state changes
+    });
   }
 
   /**
-   * Get CSRF token from cookie with improved reliability and fallbacks
+   * Read the CSRF token from the single authoritative cookie.
    */
   static async getTokenFromCookie(): Promise<string | null> {
     try {
       const { cookies } = await import("next/headers");
       const cookieStore = await cookies();
-
-      // Try primary cookie first
-      let token = cookieStore.get(this.CSRF_COOKIE_NAME)?.value || null;
-
-      // Try backup cookie if primary not found
-      if (!token) {
-        const backupCookieName = `${this.CSRF_COOKIE_NAME}-backup`;
-        token = cookieStore.get(backupCookieName)?.value || null;
-      }
-
-      return token;
+      return cookieStore.get(this.CSRF_COOKIE_NAME)?.value ?? null;
     } catch (error) {
       console.error("[CSRF] Failed to get token from cookie:", error);
       return null;
@@ -176,47 +164,27 @@ export class CSRFProtection {
   }
 
   /**
-   * Get the backup CSRF cookie name.
-   */
-  static getBackupCookieName(): string {
-    return `${this.CSRF_COOKIE_NAME}-backup`;
-  }
-
-  /**
-   * Get or create CSRF token for the current session
+   * Get or create CSRF token for the current session.
+   *
+   * If setToken() fails the error propagates — a failed CSRF setup must be
+   * loud, not silently swallowed into an unpersisted token that will always
+   * fail validation.
    */
   static async getOrCreateToken(): Promise<string> {
-    try {
-      // Try to get existing token first
-      let token = await this.getTokenFromCookie();
-      
-      if (!token) {
-        // Generate new token if none exists
-        token = this.generateToken();
-        await this.setToken(token);
-        if (process.env.NODE_ENV !== "production") {
-          console.log("[CSRF] Generated new CSRF token for session");
-        }
-      }
-      
-      return token;
-    } catch (error) {
-      console.error("[CSRF] Failed to get or create token:", error);
-      
-      // Fallback: return a new token without setting cookie
-      // This should be rare and only in emergency situations
-      const fallbackToken = this.generateToken();
-      console.warn("[CSRF] Using fallback token (not persisted)");
-      return fallbackToken;
-    }
+    const existing = await this.getTokenFromCookie();
+    if (existing) return existing;
+
+    const token = this.generateToken();
+    await this.setToken(token); // throws on failure — caller handles
+    return token;
   }
 
   /**
-   * Health check for CSRF token system
+   * Health check for CSRF token system.
+   * Reports whether a valid token cookie is present for the current session.
    */
   static async healthCheck(): Promise<{
     hasToken: boolean;
-    tokenAge?: number;
     cookieIssues: string[];
     recommendations: string[];
   }> {
@@ -231,53 +199,35 @@ export class CSRFProtection {
       result.hasToken = !!token;
 
       if (!token) {
-        result.cookieIssues.push("No CSRF token found in cookies");
-        result.recommendations.push("Generate a new CSRF token");
-      }
-
-      // Check if debug cookie exists in development
-      if (process.env.NODE_ENV !== "production") {
-        const { cookies } = await import("next/headers");
-        const cookieStore = await cookies();
-        const debugToken = cookieStore.get(`${this.CSRF_COOKIE_NAME}-debug`)?.value;
-        
-        if (!debugToken) {
-          result.cookieIssues.push("Debug CSRF cookie missing in development");
-        }
+        result.cookieIssues.push("No CSRF token cookie found — client should call GET /api/csrf");
+        result.recommendations.push(
+          "Ensure the browser called /api/csrf before submitting forms, " +
+          "and that the cookie was not cleared by a logout without re-login."
+        );
       }
 
       return result;
     } catch (error) {
-      result.cookieIssues.push(`Health check failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      result.cookieIssues.push(
+        `Health check failed: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
       result.recommendations.push("Check cookie configuration and server setup");
       return result;
     }
   }
 
   /**
-   * Clear all CSRF tokens (for logout, etc.)
+   * Clear the CSRF token cookie.
+   * Called on logout to invalidate the token immediately rather than waiting
+   * for the 1-hour maxAge to expire.
    */
   static async clearTokens(): Promise<void> {
     try {
       const { cookies } = await import("next/headers");
       const cookieStore = await cookies();
-      
-      // Clear all CSRF-related cookies
-      const cookieNames = [
-        this.CSRF_COOKIE_NAME,
-        `${this.CSRF_COOKIE_NAME}-backup`,
-        `${this.CSRF_COOKIE_NAME}-debug`,
-      ];
-
-      cookieNames.forEach(name => {
-        cookieStore.delete(name);
-      });
-
-      if (process.env.NODE_ENV !== "production") {
-        console.log("[CSRF] All CSRF tokens cleared");
-      }
+      cookieStore.delete(this.CSRF_COOKIE_NAME);
     } catch (error) {
-      console.error("[CSRF] Failed to clear tokens:", error);
+      console.error("[CSRF] Failed to clear token:", error);
     }
   }
 }
