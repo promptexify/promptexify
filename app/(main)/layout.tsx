@@ -14,7 +14,7 @@ export default async function MainLayout({
       <div className="relative flex min-h-screen flex-col">
         <Header parentCategories={parentCategories} />
         <main className="flex-1">{children}</main>
-        <Footer />
+        <Footer parentCategories={parentCategories} />
       </div>
     </Container>
   );

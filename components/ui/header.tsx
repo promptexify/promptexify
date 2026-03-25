@@ -53,14 +53,6 @@ function MobileNav({
             All Prompts
           </Link>
         </SheetClose>
-        <SheetClose asChild>
-          <Link
-            href="/features"
-            className="block px-3 py-2 text-sm font-medium text-foreground hover:text-foreground/80 hover:bg-accent rounded-md transition-colors"
-          >
-            Features
-          </Link>
-        </SheetClose>
         {parentCategories.map((cat) => {
           const hasSubcategories = cat.children?.length;
           if (!hasSubcategories) {

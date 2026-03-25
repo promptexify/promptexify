@@ -58,22 +58,9 @@ export function Navbar({
     return false;
   };
 
-  const isFeaturesActive = pathname === "/features";
-
   return (
     <NavigationMenu viewport={false}>
       <NavigationMenuList className="flex flex-nowrap items-center gap-1">
-        <NavigationMenuItem>
-          <NavigationMenuLink
-            asChild
-            className={cn(
-              navigationMenuTriggerStyle(),
-              isFeaturesActive && "bg-accent text-accent-foreground"
-            )}
-          >
-            <Link href="/features">Features</Link>
-          </NavigationMenuLink>
-        </NavigationMenuItem>
         {parentCategories.map((cat) => {
           const hasSubcategories = cat.children?.length;
           const isParentActive = category === cat.slug && !subcategory;

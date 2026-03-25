@@ -3,8 +3,9 @@ import { Github } from "@/components/ui/icons";
 import { Logo } from "@/components/ui/logo";
 import { Container } from "@/components/ui/container";
 import { DarkModeToggle } from "@/components/ui/toggle-darkmode";
+import type { ParentCategoryNav } from "@/lib/content";
 
-export function Footer() {
+export function Footer({ parentCategories = [] }: { parentCategories?: ParentCategoryNav[] }) {
   return (
     <footer className="border-t border-border/40 bg-background">
       <Container className="sm:px-6 md:py-16">
@@ -30,63 +31,71 @@ export function Footer() {
             </div>
           </div>
 
-          {/* Services (Temporary hidden) - keeps grid spacing so Company stays right */}
-          <div className="space-y-3 sm:space-y-4 opacity-0 lg:col-span-2">
-            <h3 className="font-semibold text-sm">Services</h3>
-            <ul className="space-y-2 text-sm">
-              <li>
-                <Link href="/features" className="text-muted-foreground hover:text-foreground transition-colors">
-                  Features
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/prompt-generator"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Prompt Generator
-                </Link>
-              </li>
-            </ul>
-          </div>
+          {/* Explore + Company */}
+          <div className="col-span-1 sm:col-span-2 md:col-span-2 lg:col-start-4 lg:col-span-4 flex gap-10 sm:gap-16 lg:justify-end">
+            <div className="space-y-3 sm:space-y-4">
+              <h3 className="font-semibold text-sm">Explore</h3>
+              <ul className="space-y-2 text-sm">
+                <li>
+                  <Link href="/features" className="text-muted-foreground hover:text-foreground transition-colors">
+                    Features
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/directory" className="text-muted-foreground hover:text-foreground transition-colors">
+                    Directory
+                  </Link>
+                </li>
+                {parentCategories.map((cat) => (
+                  <li key={cat.id}>
+                    <Link
+                      href={`/directory?category=${encodeURIComponent(cat.slug)}`}
+                      className="text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {cat.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
 
-          {/* Company - keep on the right (same as original layout) */}
-          <div className="space-y-3 sm:space-y-4 lg:col-start-6 lg:col-span-2 lg:text-right">
-            <h3 className="font-semibold text-sm">Company</h3>
-            <ul className="space-y-2 text-sm">
-              <li>
-                <Link
-                  href="/privacy"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Privacy Policy
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/terms"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Terms of Use
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/contact"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Contact Us
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/about"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  About Us
-                </Link>
-              </li>
-            </ul>
+            <div className="space-y-3 sm:space-y-4">
+              <h3 className="font-semibold text-sm">Company</h3>
+              <ul className="space-y-2 text-sm">
+                <li>
+                  <Link
+                    href="/privacy"
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Privacy Policy
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/terms"
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Terms of Use
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/contact"
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Contact Us
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/about"
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    About Us
+                  </Link>
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
 
