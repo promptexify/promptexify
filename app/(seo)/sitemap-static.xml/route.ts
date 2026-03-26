@@ -5,49 +5,58 @@ export async function GET(request: NextRequest) {
   const protocol = request.headers.get("x-forwarded-proto") || "https";
   const baseUrl = `${protocol}://${host}`;
 
-  // Static pages that should be included in sitemap
+  // Static pages included in sitemap.
+  // lastModified: use the actual date content was last meaningfully changed,
+  // not new Date() — volatile timestamps waste crawl budget by signalling
+  // constant change to Googlebot.
   const staticPages = [
     {
       url: "",
-      lastModified: new Date().toISOString(),
+      lastModified: new Date("2025-03-01").toISOString(),
       changeFreq: "daily",
       priority: "1.0",
     },
     {
       url: "/directory",
-      lastModified: new Date().toISOString(),
+      lastModified: new Date("2025-03-01").toISOString(),
       changeFreq: "daily",
       priority: "0.9",
+    },
+    {
+      url: "/features",
+      lastModified: new Date("2025-01-15").toISOString(),
+      changeFreq: "monthly",
+      priority: "0.8",
     },
     {
       url: "/about",
       lastModified: new Date("2024-12-29").toISOString(),
       changeFreq: "monthly",
-      priority: "0.8",
+      priority: "0.7",
+    },
+    {
+      url: "/help",
+      lastModified: new Date("2025-01-15").toISOString(),
+      changeFreq: "monthly",
+      priority: "0.6",
     },
     {
       url: "/contact",
       lastModified: new Date("2024-12-29").toISOString(),
       changeFreq: "monthly",
-      priority: "0.7",
-    },
-    {
-      url: "/privacy-policy",
-      lastModified: new Date("2024-12-29").toISOString(),
-      changeFreq: "yearly",
       priority: "0.5",
     },
     {
-      url: "/terms-of-use",
+      url: "/privacy",
       lastModified: new Date("2024-12-29").toISOString(),
       changeFreq: "yearly",
-      priority: "0.5",
+      priority: "0.3",
     },
     {
-      url: "/help",
-      lastModified: new Date().toISOString(),
-      changeFreq: "weekly",
-      priority: "0.6",
+      url: "/terms",
+      lastModified: new Date("2024-12-29").toISOString(),
+      changeFreq: "yearly",
+      priority: "0.3",
     },
   ];
 
@@ -71,7 +80,7 @@ ${staticPages
   return new Response(sitemap, {
     headers: {
       "Content-Type": "application/xml",
-      "Cache-Control": "public, max-age=3600, s-maxage=3600", // Cache for 1 hour
+      "Cache-Control": "public, max-age=86400, s-maxage=86400", // 24 hours — content rarely changes
     },
   });
 }

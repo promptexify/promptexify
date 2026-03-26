@@ -164,8 +164,10 @@ export function generatePostMetadata(post: {
     post.description ||
     (post.content
       ? post.content
-          .replace(/^#+\s.+\n\n?/, "")
-          .replace(/[`*_#>\[\]]/g, "")
+          .replace(/```[\s\S]*?```/g, "")   // strip fenced code blocks first
+          .replace(/`[^`]+`/g, "")           // strip inline code
+          .replace(/^#+\s.+\n\n?/m, "")      // strip leading heading
+          .replace(/[*_#>\[\]]/g, "")        // strip remaining markdown symbols
           .replace(/\n+/g, " ")
           .trim()
           .substring(0, 155) + "…"
@@ -184,17 +186,22 @@ export function generatePostMetadata(post: {
   const canonicalUrl = `${baseUrl}/entry/${post.id}`;
   const ogImage = `${baseUrl}/static/og-image.png`;
 
+  // Cap description at 160 chars to prevent Google from truncating with its own ellipsis
+  const cappedDescription =
+    description.length > 160 ? description.substring(0, 157) + "…" : description;
+
   return setMetadata({
     title,
-    description,
+    description: cappedDescription,
     keywords,
     alternates: {
       canonical: canonicalUrl,
     },
     openGraph: {
       title,
-      description,
+      description: cappedDescription,
       type: "article",
+      locale: "en_US",
       url: canonicalUrl,
       siteName: "Promptexify",
       images: [{ url: ogImage, width: 1200, height: 630, alt: title }],
@@ -202,13 +209,15 @@ export function generatePostMetadata(post: {
       modifiedTime: post.updatedAt?.toISOString(),
       authors: post.author?.name ? [post.author.name] : undefined,
       tags: post.tags?.map((t) => t.name),
+      section: post.category?.name,
     },
     twitter: {
       card: "summary_large_image",
       title,
-      description,
+      description: cappedDescription,
       images: [ogImage],
       site: "@promptexify",
+      creator: "@promptexify",
     },
     robots: {
       index: true,

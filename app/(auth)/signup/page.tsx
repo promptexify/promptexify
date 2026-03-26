@@ -1,6 +1,12 @@
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SignUpForm } from "@/components/auth/signup-form";
+import { setMetadata } from "@/config/seo";
+
+export const metadata = setMetadata({
+  title: "Create Account",
+  robots: { index: false, follow: false },
+});
 
 export default function SignUpPage() {
   return (

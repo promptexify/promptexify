@@ -2,6 +2,15 @@ import { NextRequest } from "next/server";
 import { withErrorHandling } from "@/lib/db";
 import { getPostsForSitemap } from "@/lib/content";
 
+function getChangeFreq(updatedAt: Date): string {
+  const ageMs = Date.now() - updatedAt.getTime();
+  const days = ageMs / (1000 * 60 * 60 * 24);
+  if (days <= 7) return "daily";
+  if (days <= 30) return "weekly";
+  if (days <= 90) return "monthly";
+  return "yearly";
+}
+
 export async function GET(request: NextRequest) {
   const host = request.headers.get("host") || "promptexify.com";
   const protocol = request.headers.get("x-forwarded-proto") || "https";
@@ -23,7 +32,7 @@ ${posts
     (post) => `  <url>
     <loc>${baseUrl}/entry/${post.id}</loc>
     <lastmod>${post.updatedAt.toISOString()}</lastmod>
-    <changefreq>weekly</changefreq>
+    <changefreq>${getChangeFreq(post.updatedAt)}</changefreq>
     <priority>0.7</priority>
   </url>`
   )

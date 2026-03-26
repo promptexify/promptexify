@@ -12,6 +12,8 @@ import { FeaturedPostsClient } from "@/components/featured-posts-client";
 import nextDynamic from "next/dynamic";
 import { getMetadata } from "@/config/seo";
 import { headers } from "next/headers";
+import { getBaseUrl } from "@/lib/utils";
+import { safeJsonLd } from "@/lib/security/sanitize";
 
 export const metadata = getMetadata("home");
 
@@ -36,7 +38,31 @@ async function PostGrid() {
   ]);
   const userType = currentUser?.userData?.type ?? null;
 
-  return <FeaturedPostsClient posts={featuredPosts} userType={userType} />;
+  const baseUrl = getBaseUrl();
+  const itemListJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name: "Featured Prompts",
+    description: "Hand-picked collection of the best Cursor rules, MCP configs, Claude Code skills, and AI coding prompts.",
+    url: baseUrl,
+    numberOfItems: featuredPosts.length,
+    itemListElement: featuredPosts.map((post, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      url: `${baseUrl}/entry/${post.id}`,
+      name: post.title,
+    })),
+  };
+
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(itemListJsonLd) }}
+      />
+      <FeaturedPostsClient posts={featuredPosts} userType={userType} />
+    </>
+  );
 }
 
 export default async function HomePage() {

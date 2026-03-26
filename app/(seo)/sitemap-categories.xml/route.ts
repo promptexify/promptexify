@@ -24,8 +24,8 @@ ${categories
     <loc>${baseUrl}/directory?category=${encodeURIComponent(
       category.slug
     )}</loc>
-    <lastmod>${new Date().toISOString()}</lastmod>
-    <changefreq>daily</changefreq>
+    <lastmod>${new Date(category.updatedAt ?? category.createdAt).toISOString()}</lastmod>
+    <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>`
   )

@@ -1,6 +1,12 @@
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SignInForm } from "@/components/auth/signin-form";
+import { setMetadata } from "@/config/seo";
+
+export const metadata = setMetadata({
+  title: "Sign In",
+  robots: { index: false, follow: false },
+});
 
 export default function SignInPage() {
   return (

@@ -1,8 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import {
-  getRelatedPosts,
-  getFeaturedPostIds,
-} from "@/lib/content";
+import { getRelatedPosts } from "@/lib/content";
 import { Queries } from "@/lib/query";
 import type { PostWithInteractions } from "@/lib/content";
 import { PostStandalonePage } from "@/components/post-standalone-page";
@@ -47,14 +44,6 @@ export async function generateMetadata({
   });
 }
 
-export async function generateStaticParams() {
-  try {
-    const ids = await getFeaturedPostIds(100);
-    return ids.map((id) => ({ id }));
-  } catch {
-    return [];
-  }
-}
 
 export default async function PostPage({ params, searchParams }: PostPageProps) {
   const { id } = await params;
@@ -86,7 +75,13 @@ export default async function PostPage({ params, searchParams }: PostPageProps) 
     headline: result.title,
     description:
       result.description ||
-      result.content?.replace(/[`*_#>\[\]]/g, "").replace(/\n+/g, " ").trim().substring(0, 155),
+      result.content
+        ?.replace(/```[\s\S]*?```/g, "")
+        .replace(/`[^`]+`/g, "")
+        .replace(/[*_#>\[\]]/g, "")
+        .replace(/\n+/g, " ")
+        .trim()
+        .substring(0, 155),
     url: canonicalUrl,
     datePublished: result.createdAt ? new Date(result.createdAt).toISOString() : undefined,
     dateModified: result.updatedAt ? new Date(result.updatedAt).toISOString() : undefined,
@@ -108,11 +103,28 @@ export default async function PostPage({ params, searchParams }: PostPageProps) 
       .join(", "),
   };
 
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: baseUrl },
+      { "@type": "ListItem", position: 2, name: "Directory", item: `${baseUrl}/directory` },
+      ...(result.category
+        ? [{ "@type": "ListItem", position: 3, name: result.category.name, item: `${baseUrl}/directory?category=${result.category.slug}` }]
+        : []),
+      { "@type": "ListItem", position: result.category ? 4 : 3, name: result.title, item: canonicalUrl },
+    ],
+  };
+
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonLd(articleJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbJsonLd) }}
       />
       <PostStandalonePage
         post={processedPost}

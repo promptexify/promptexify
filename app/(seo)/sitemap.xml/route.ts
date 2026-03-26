@@ -9,15 +9,12 @@ export async function GET(request: NextRequest) {
 <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <sitemap>
     <loc>${baseUrl}/sitemap-static.xml</loc>
-    <lastmod>${new Date().toISOString()}</lastmod>
   </sitemap>
   <sitemap>
     <loc>${baseUrl}/sitemap-posts.xml</loc>
-    <lastmod>${new Date().toISOString()}</lastmod>
   </sitemap>
   <sitemap>
     <loc>${baseUrl}/sitemap-categories.xml</loc>
-    <lastmod>${new Date().toISOString()}</lastmod>
   </sitemap>
 </sitemapindex>`;
 
