@@ -17,8 +17,8 @@ Allow: /directory
 Allow: /entry/
 Allow: /about
 Allow: /contact
-Allow: /privacy-policy
-Allow: /terms-of-use
+Allow: /privacy
+Allow: /terms
 Allow: /help
 Allow: /search
 
@@ -160,11 +160,6 @@ Crawl-delay: 1
 
 # Sitemap location
 Sitemap: ${baseUrl}/sitemap.xml
-
-# Additional sitemaps
-Sitemap: ${baseUrl}/sitemap-posts.xml
-Sitemap: ${baseUrl}/sitemap-categories.xml
-Sitemap: ${baseUrl}/sitemap-static.xml
 `;
 
   return new Response(robotsTxt, {
