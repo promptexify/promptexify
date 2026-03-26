@@ -34,7 +34,7 @@ export default function GlobalInterceptedModalPage() {
     async function fetchPostData() {
       try {
         // Fetch post data with caching for instant loads
-        const response = await fetch(`/api/posts/${id}`, {
+        const response = await fetch(`/api/v1/posts/${id}`, {
           // Use default cache for data
           cache: "default",
           // Add cache headers for better performance

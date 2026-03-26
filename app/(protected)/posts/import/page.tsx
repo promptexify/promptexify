@@ -163,7 +163,7 @@ export default function BulkImportPage() {
   // Fetch categories for client-side slug validation
   useEffect(() => {
     if (user?.userData?.role !== "ADMIN") return;
-    fetch("/api/categories", { credentials: "same-origin" })
+    fetch("/api/v1/categories", { credentials: "same-origin" })
       .then((r) => (r.ok ? r.json() : []))
       .then((data: unknown) => {
         if (Array.isArray(data)) setCategories(data as Category[]);

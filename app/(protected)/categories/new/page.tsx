@@ -62,7 +62,7 @@ export default function NewCategoryPage() {
     async function fetchCategories() {
       try {
         setCategoriesLoading(true);
-        const response = await fetch("/api/categories");
+        const response = await fetch("/api/v1/categories");
         if (response.ok) {
           const data = await response.json();
           // Filter for parent categories (only categories without parents)

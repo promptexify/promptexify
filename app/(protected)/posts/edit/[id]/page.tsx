@@ -116,8 +116,8 @@ export default function EditPostPage() {
         setError(null);
 
         const [postRes, categoriesRes] = await Promise.all([
-          fetch(`/api/posts/${postId}`),
-          fetch("/api/categories"),
+          fetch(`/api/v1/posts/${postId}`),
+          fetch("/api/v1/categories"),
         ]);
 
         if (!postRes.ok) {
@@ -167,7 +167,7 @@ export default function EditPostPage() {
   useEffect(() => {
     async function fetchContentConfig() {
       try {
-        const res = await fetch("/api/settings/content-config", {
+        const res = await fetch("/api/v1/settings/content", {
           credentials: "same-origin",
         });
         if (res.ok) {
@@ -213,7 +213,7 @@ export default function EditPostPage() {
 
         for (const tagName of uniquePendingTags) {
           try {
-            const response = await fetch("/api/tags", {
+            const response = await fetch("/api/v1/tags", {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",

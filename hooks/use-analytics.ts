@@ -122,7 +122,7 @@ export function useAnalytics({
         timezone,
       });
 
-      const response = await fetch(`/api/analytics?${params}`, {
+      const response = await fetch(`/api/v1/analytics?${params}`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",

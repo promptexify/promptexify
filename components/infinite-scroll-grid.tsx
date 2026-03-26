@@ -149,7 +149,7 @@ export function InfinitePostGrid({
       if (premium) params.set("premium", premium);
       if (sort) params.set("sortBy", sort);
 
-      const response = await fetch(`/api/posts?${params.toString()}`);
+      const response = await fetch(`/api/v1/posts?${params.toString()}`);
 
       if (!response.ok) {
         // Try to parse error response for better error handling

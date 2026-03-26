@@ -75,7 +75,7 @@ export default function EditTagPage({ params }: EditTagPageProps) {
 
       try {
         setTagLoading(true);
-        const response = await fetch(`/api/tags/${tagId}`);
+        const response = await fetch(`/api/v1/tags/${tagId}`);
         if (response.ok) {
           const tagData = await response.json();
           setTag(tagData);

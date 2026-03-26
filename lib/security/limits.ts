@@ -247,10 +247,6 @@ function createRateLimits() {
       config.interactions.limit,
       config.interactions.window
     ),
-    mediaResolve: createRateLimit(
-      config.mediaResolve.limit,
-      config.mediaResolve.window
-    ),
   };
 }
 

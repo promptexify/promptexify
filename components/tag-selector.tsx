@@ -66,8 +66,8 @@ export function TagSelector({
     debounceTimer.current = setTimeout(async () => {
       try {
         const url = searchQuery.trim()
-          ? `/api/tags?q=${encodeURIComponent(searchQuery.trim())}`
-          : "/api/tags";
+          ? `/api/v1/tags?q=${encodeURIComponent(searchQuery.trim())}`
+          : "/api/v1/tags";
         const res = await fetch(url, { credentials: "same-origin" });
         if (res.ok) {
           const data = await res.json();

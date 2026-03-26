@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Product
+
+Promptexify is a community-driven prompt marketplace for AI tools (Claude rules, MCP configs, skills, prompts). Users browse/star content; admins approve submissions. All content lives in a single `posts` table differentiated by category hierarchy — there are no separate tables per content type.
+
 ## Commands
 
 ```bash
@@ -58,7 +62,7 @@ app/
     posts/         # Post management: list, new, edit/[id]
     stars/         # User's starred posts
     tags/          # Tag management
-  api/             # API routes: posts, admin, webhooks, csrf, analytics, etc.
+  api/v1/          # API routes: posts, admin, webhooks, csrf, analytics, etc.
 ```
 
 ### Data Flow
@@ -75,10 +79,12 @@ app/
 
 6. **Settings helpers** (`lib/settings.ts`): Use `getFeaturedPostsLimit()`, `getPostsPageSize()`, `getMaxTagsPerPost()`, `getAllowUserPosts()` for reading site settings in Server Components and API routes. All are `unstable_cache`-backed (600s TTL). Do **not** call `getSettingsAction()` on public or non-admin pages — it runs a full DB query on every request.
 
+7. **Bearer token auth**: Middleware also accepts `Authorization: Bearer <jwt>` for API clients (native apps). Bearer requests skip CSRF validation — CSRF only applies to cookie-session requests.
+
 ### Security Architecture
 
 - **CSP**: Nonce generated per request via `CSPNonce.generate()`, passed to Server Components via `x-nonce` header, to Client Components via `csp-nonce` cookie. `https://challenges.cloudflare.com` is allowed in `script-src`, `frame-src`, and `connect-src` for Turnstile.
-- **CSRF**: Token stored in cookie, validated in middleware for all mutating API calls. Endpoints that skip CSRF: `/api/webhooks/`, `/api/auth/`, `/auth/callback`, `/api/security/csp-report`.
+- **CSRF**: Token stored in cookie, validated in middleware for all mutating API calls. Endpoints that skip CSRF: `/api/v1/webhooks/`, `/api/v1/auth/`, `/auth/callback`, `/api/v1/security/csp-report`.
 - **Rate limiting**: `lib/edge.ts` — Redis-backed, falls back to in-memory. Applied globally to `/api/*` routes in middleware.
 - **Input sanitization**: `lib/security/sanitize.ts` — use `sanitizeInput()` for text fields, `sanitizeContent()` for HTML content, `sanitizeTagSlug()` for slugs.
 - **Audit logging**: `lib/security/audit.ts` `SecurityEvents` — logs auth failures, rate limit hits, etc. to the `logs` table.
@@ -94,12 +100,13 @@ app/
 - **Deployment**: Always use `npm run db:deploy` (runs `scripts/deploy-db.ts`) which applies RLS helper functions first, then runs Drizzle migrations. Never use `drizzle-kit push` on a schema with RLS policies — it crashes with a `TypeError` in drizzle-kit 0.31.x.
 - **Fresh DB setup**: If migrating to a new Supabase project, apply consolidated DDL via the Supabase MCP `apply_migration` tool (derived from `drizzle/meta/<latest>_snapshot.json`), then seed `drizzle.__drizzle_migrations` with the SHA256 hashes of all migration files using `readMigrationFiles()` from `drizzle-orm/migrator`.
 - **Required extensions**: `pg_trgm` and `btree_gin` must exist before schema migration (`CREATE EXTENSION IF NOT EXISTS pg_trgm; CREATE EXTENSION IF NOT EXISTS btree_gin;`).
+- **Full-text search**: `posts.searchVector` is a `tsvector` GIN-indexed column maintained by a Postgres trigger (defined in `scripts/perf-indexes.sql`). Tag fuzzy search uses `gin_trgm_ops` on `tags.name`. Do not implement search without these indexes.
 - **RLS helper function gotcha**: `current_user_is_admin()` uses `LANGUAGE sql` with `SECURITY DEFINER` and `SET search_path = public`. Both helper functions are defined in `scripts/rls-functions.sql` and applied via `npm run db:deploy`.
 
 ### Key Patterns
 
 - **`actions/index.ts`** re-exports all server actions as a barrel.
-- **Cache invalidation**: call `revalidateCache(CACHE_TAGS.POSTS)` (or relevant tag) after any data mutation. Always use `revalidateTag(tag, 'max')` (two-argument form — custom type override). Tags include `USER_STARS`, `POST_BY_ID`, `POSTS`, `USER_PROFILE`, `ADMIN_STATS`, etc.
+- **Cache invalidation**: call `revalidateCache(CACHE_TAGS.POSTS)` (or relevant tag) after any data mutation. Always use `revalidateTag(tag, 'max')` (two-argument form — custom type override). All tags: `POSTS`, `POST_BY_SLUG`, `POST_BY_ID`, `CATEGORIES`, `TAGS`, `USER_POSTS`, `RELATED_POSTS`, `SEARCH_RESULTS`, `USER_STARS`, `USER_PROFILE`, `POPULAR_POSTS`, `ANALYTICS`, `ADMIN_STATS`.
 - **Access**: All users have full access; no paid tiers. `hasActivePremiumSubscription()` in `lib/auth.ts` always returns true.
 - **Parallel modal route**: `app/(main)/@modal/` intercepts `/entry/[id]` links to show a modal preview without full page navigation.
 - **Server action responses**: Actions return `ActionResult` — `{ success: boolean; message?: string; error?: string; data?: unknown }`.
@@ -112,6 +119,9 @@ app/
   - `skipRelated?: boolean` — skips tags, star counts, and isStarred queries (3 DB round-trips). Use `true` for management/list views that show no tag or star data (e.g. `/posts` management table).
   - `isFeatured?: boolean` — filters featured/non-featured posts at DB level.
 - **`getFeaturedPosts` caching**: always calls `getCachedPosts` (shared cache, no userId) to avoid authenticated users bypassing the post cache. Per-user star status is overlaid separately with a single lightweight `SELECT postId FROM stars WHERE userId = ? AND postId IN (...)` query.
-- **User profile caching**: `GET /api/user/profile` wraps its DB SELECT in `unstable_cache` keyed per-user (`user-profile-{userId}`, 60s TTL, `CACHE_TAGS.USER_PROFILE` tag). Invalidate with `revalidateTag(CACHE_TAGS.USER_PROFILE, 'max')` after profile updates.
+- **User profile caching**: `GET /api/v1/user/profile` wraps its DB SELECT in `unstable_cache` keyed per-user (`user-profile-{userId}`, 60s TTL, `CACHE_TAGS.USER_PROFILE` tag). Invalidate with `revalidateTag(CACHE_TAGS.USER_PROFILE, 'max')` after profile updates.
 - **Admin stats caching**: `getAdminDashboardStatsAction` extracts the 7 parallel aggregate queries into `_fetchAdminStats` wrapped with `unstable_cache` (120s TTL, `CACHE_TAGS.ADMIN_STATS` tag). The auth check remains outside the cache. Invalidate with `revalidateTag(CACHE_TAGS.ADMIN_STATS, 'max')` after relevant data mutations.
 - **x-user-id in API routes**: API routes that only need to know *who* is calling (not their full profile) should read `headers().get("x-user-id")` directly instead of calling `getCurrentUser()` — this avoids a DB round-trip.
+- **Post lifecycle**: `DRAFT` → `PENDING_APPROVAL` (user submits) → `APPROVED` + `isPublished: true` (admin approves) or `REJECTED`. Featured toggle (`isFeatured`) is a separate admin action. `isPremium` flag exists in schema but is a no-op — all users get full access.
+- **Rate limiting**: Two layers — `lib/edge.ts` (in-memory, used in middleware fallback) and `lib/limits.ts` (Redis-backed, production). Default: 100 req/15 min per IP on `/api/*`; auth endpoints are stricter (5 req/15 min). Client identified via `x-forwarded-for` / Vercel proxy headers.
+- **Custom hooks** (`hooks/`): `useAuth()` — auth state + sign-out; `useCSRF()` — fetch CSRF token before mutations; `useAnalytics()` — event tracking; `useDebounce()` — search input debounce; `useMobile()` — breakpoint detection.

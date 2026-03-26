@@ -47,8 +47,8 @@ export function SecurityDashboard() {
 
       // Fetch recent security events and stats
       const [eventsRes, statsRes] = await Promise.all([
-        fetch("/api/admin/security/events"),
-        fetch("/api/admin/security/stats"),
+        fetch("/api/v1/admin/security/events"),
+        fetch("/api/v1/admin/security/stats"),
       ]);
 
       if (eventsRes.ok) {

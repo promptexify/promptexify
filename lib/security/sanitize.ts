@@ -791,7 +791,6 @@ export function getRateLimitConfig() {
       admin: { limit: 10, window: 60 * 1000 }, // 10 admin requests per minute
       search: { limit: 30, window: 60 * 1000 }, // 30 searches per minute
       interactions: { limit: 100, window: 60 * 1000 }, // 100 interactions per minute
-      mediaResolve: { limit: 100, window: 60 * 1000 }, // 100 media resolves per minute
     };
   } else {
     // More lenient rate limits in development
@@ -804,7 +803,6 @@ export function getRateLimitConfig() {
       admin: { limit: 100, window: 60 * 1000 }, // 100 admin requests per minute
       search: { limit: 200, window: 60 * 1000 }, // 200 searches per minute
       interactions: { limit: 1000, window: 60 * 1000 }, // 1000 interactions per minute
-      mediaResolve: { limit: 1000, window: 60 * 1000 }, // 1000 media resolves per minute
     };
   }
 }

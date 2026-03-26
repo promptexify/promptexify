@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback } from "react";
 // Module-level singleton cache
 //
 // Shared across ALL useCSRF() callers in the same browser tab.
-// - Only ONE /api/csrf request is ever in-flight at a time (pendingFetch).
+// - Only ONE /api/v1/csrf request is ever in-flight at a time (pendingFetch).
 // - Subsequent mounts reuse the cached token until it expires (23 h, slightly
 //   below the server's 24 h cookie maxAge so we never send a stale token).
 // - refreshToken() busts the cache and forces a new fetch.
@@ -30,7 +30,7 @@ async function fetchCSRFToken(): Promise<string> {
   if (pendingFetch) return pendingFetch;
 
   pendingFetch = (async () => {
-    const response = await fetch("/api/csrf", {
+    const response = await fetch("/api/v1/csrf", {
       method: "GET",
       credentials: "same-origin",
     });

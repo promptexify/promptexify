@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { CSRFProtection, SecurityHeaders } from "@/lib/security/csp";
 
 /**
- * GET /api/csrf
+ * GET /api/v1/csrf
  * Returns a CSRF token and sets the corresponding httpOnly cookie.
  *
  * Token is reused from the existing cookie if present, otherwise a new one

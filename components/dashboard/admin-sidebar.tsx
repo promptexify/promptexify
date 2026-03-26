@@ -132,7 +132,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
 
   useEffect(() => {
     if (!isUser) return; // admins always see everything; no need to fetch
-    fetch("/api/settings/content-config", { credentials: "same-origin" })
+    fetch("/api/v1/settings/content", { credentials: "same-origin" })
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
         if (data && typeof data.allowUserPosts === "boolean") {

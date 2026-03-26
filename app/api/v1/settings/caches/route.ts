@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { SECURITY_HEADERS } from "@/lib/security/sanitize";
 
 /**
- * POST /api/settings/clear-caches
+ * POST /api/v1/settings/caches
  * No-op endpoint kept for backward compatibility.
  * Media upload functionality has been removed.
  *

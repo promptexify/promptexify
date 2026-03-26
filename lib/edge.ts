@@ -215,7 +215,6 @@ function createRateLimits() {
         admin: { limit: 10, window: 60 * 1000 }, // 10 admin requests per minute
         search: { limit: 30, window: 60 * 1000 }, // 30 searches per minute
         interactions: { limit: 100, window: 60 * 1000 }, // 100 interactions per minute
-        mediaResolve: { limit: 100, window: 60 * 1000 }, // 100 media URL resolves per minute
         csrf: { limit: 20, window: 60 * 1000 }, // 20 CSRF token fetches per minute
       }
     : {
@@ -228,7 +227,6 @@ function createRateLimits() {
         admin: { limit: 100, window: 60 * 1000 }, // 100 admin requests per minute
         search: { limit: 100, window: 60 * 1000 }, // 100 searches per minute
         interactions: { limit: 500, window: 60 * 1000 }, // 500 interactions per minute
-        mediaResolve: { limit: 500, window: 60 * 1000 }, // 500 media resolves per minute
         csrf: { limit: 100, window: 60 * 1000 }, // 100 CSRF token fetches per minute (dev)
       };
 
@@ -261,12 +259,6 @@ function createRateLimits() {
     interactions: createRateLimit(
       config.interactions.limit,
       config.interactions.window
-    ),
-
-    // Media URL resolution (e.g. signed URLs)
-    mediaResolve: createRateLimit(
-      config.mediaResolve.limit,
-      config.mediaResolve.window
     ),
 
     // CSRF token endpoint (dedicated bucket to prevent token exhaustion)

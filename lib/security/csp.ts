@@ -32,7 +32,7 @@ export class CSRFProtection {
    *   falls back to `NODE_ENV === "production"`. Call sites that have access to
    *   the request (e.g. Route Handlers) should derive this from
    *   `x-forwarded-proto` and pass it explicitly for consistency with how
-   *   proxy.ts and app/api/csrf/route.ts set cookies.
+   *   proxy.ts and app/api/v1/csrf/route.ts set cookies.
    */
   static async setToken(token: string, secure?: boolean): Promise<void> {
     const { cookies } = await import("next/headers");
@@ -199,9 +199,9 @@ export class CSRFProtection {
       result.hasToken = !!token;
 
       if (!token) {
-        result.cookieIssues.push("No CSRF token cookie found — client should call GET /api/csrf");
+        result.cookieIssues.push("No CSRF token cookie found — client should call GET /api/v1/csrf");
         result.recommendations.push(
-          "Ensure the browser called /api/csrf before submitting forms, " +
+          "Ensure the browser called /api/v1/csrf before submitting forms, " +
           "and that the cookie was not cleared by a logout without re-login."
         );
       }

@@ -90,8 +90,8 @@ export default function EditCategoryPage({ params }: EditCategoryPageProps) {
 
         // Fetch current category and all categories in parallel
         const [categoryResponse, categoriesResponse] = await Promise.all([
-          fetch(`/api/categories/${categoryId}`),
-          fetch("/api/categories"),
+          fetch(`/api/v1/categories/${categoryId}`),
+          fetch("/api/v1/categories"),
         ]);
 
         if (categoryResponse.ok && categoriesResponse.ok) {

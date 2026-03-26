@@ -130,13 +130,10 @@ export async function proxy(request: NextRequest) {
 
       // Endpoints that never need CSRF (no cookies involved, or system calls)
       const skipCSRFPaths = [
-        "/api/webhooks/",   // Signature-verified (e.g. Stripe webhook secret)
-        "/api/media/resolve", // Read-only metadata resolution
-        "/auth/callback",   // OAuth redirect — no session cookie yet
-        "/api/auth/",       // Supabase-managed auth flows
-        "/api/security/csp-report", // Browser-initiated CSP violation reports
-        // NOTE: /api/upload/ was removed when media upload was removed.
-        //       Do not re-add it without also re-adding the route.
+        "/api/v1/webhooks/",   // Signature-verified (e.g. Stripe webhook secret)
+        "/auth/callback",      // OAuth redirect — no session cookie yet
+        "/api/v1/auth/",       // Supabase-managed auth flows
+        "/api/v1/security/csp-report", // Browser-initiated CSP violation reports
       ];
 
       const pathSkipsCsrf = skipCSRFPaths.some((p) => pathname.startsWith(p));
@@ -172,7 +169,7 @@ export async function proxy(request: NextRequest) {
       }
 
       // Log successful state-changing requests for monitoring
-      const skipLogging = ["/api/webhooks/", "/api/upload/"];
+      const skipLogging = ["/api/v1/webhooks/", "/api/v1/upload/"];
 
       // Ignore logging for localhost IPs in development
       const isLocal =
@@ -201,16 +198,14 @@ export async function proxy(request: NextRequest) {
 
       // Apply the strictest applicable limit per path to reduce abuse
       let rateLimitResult;
-      if (pathname.startsWith("/api/upload/")) {
+      if (pathname.startsWith("/api/v1/upload/")) {
         rateLimitResult = await rateLimits.upload(clientId);
-      } else if (pathname.startsWith("/api/admin/")) {
+      } else if (pathname.startsWith("/api/v1/admin/")) {
         rateLimitResult = await rateLimits.admin(clientId);
-      } else if (pathname.startsWith("/api/auth/")) {
+      } else if (pathname.startsWith("/api/v1/auth/")) {
         rateLimitResult = await rateLimits.auth(clientId);
-      } else if (pathname === "/api/csrf") {
+      } else if (pathname === "/api/v1/csrf") {
         rateLimitResult = await rateLimits.csrf(clientId);
-      } else if (pathname.startsWith("/api/media/resolve") || pathname.startsWith("/api/media/preview/")) {
-        rateLimitResult = await rateLimits.mediaResolve(clientId);
       } else {
         rateLimitResult = await rateLimits.api(clientId);
       }

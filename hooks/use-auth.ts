@@ -54,7 +54,7 @@ const fetchUserData = async (): Promise<UserData | null> => {
   userDataCache.promise = (async () => {
     try {
       // console.log("🔄 Fetching user profile data...");
-      const response = await fetch("/api/user/profile");
+      const response = await fetch("/api/v1/user/profile");
       if (response.ok) {
         const userData = await response.json();
         userDataCache.data = userData;

@@ -4,7 +4,7 @@ import { getMaxTagsPerPost, getAllowUserPosts } from "@/lib/settings";
 import { SECURITY_HEADERS } from "@/lib/security/sanitize";
 
 /**
- * GET /api/settings/content-config
+ * GET /api/v1/settings/content
  * Returns frontend-safe content configuration values.
  * Requires authentication (validated via x-user-id header set by middleware).
  */

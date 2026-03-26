@@ -82,7 +82,7 @@ export default function NewPostPage() {
   useEffect(() => {
     async function fetchCategories() {
       try {
-        const categoriesRes = await fetch("/api/categories", {
+        const categoriesRes = await fetch("/api/v1/categories", {
           credentials: "same-origin",
         });
         if (categoriesRes.ok) {
@@ -112,7 +112,7 @@ export default function NewPostPage() {
   useEffect(() => {
     async function fetchContentConfig() {
       try {
-        const res = await fetch("/api/settings/content-config", {
+        const res = await fetch("/api/v1/settings/content", {
           credentials: "same-origin",
         });
         if (res.ok) {
@@ -161,7 +161,7 @@ export default function NewPostPage() {
 
         for (const tagName of uniquePendingTags) {
           try {
-            const response = await fetch("/api/tags", {
+            const response = await fetch("/api/v1/tags", {
               method: "POST",
               headers: await getHeadersWithCSRF({
                 "Content-Type": "application/json",
