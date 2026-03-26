@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { PostMasonryGrid } from "@/components/post-masonry-grid";
 import { PostWithInteractions } from "@/lib/content";
@@ -100,30 +100,14 @@ export function InfinitePostGrid({
     const nextPage = currentPageValue + 1;
     const currentHasNextPage = hasNextPageRef.current;
 
-    console.log("LoadMorePosts called:", {
-      currentPage: currentPageValue,
-      nextPage,
-      hasNextPage: currentHasNextPage,
-      isLoading: isLoadingRequestRef.current,
-      lastRequested: lastRequestPageRef.current,
-    });
-
     // Prevent multiple simultaneous requests and duplicate page requests
     if (
       isLoadingRequestRef.current ||
       !currentHasNextPage ||
       lastRequestPageRef.current >= nextPage
     ) {
-      console.log("Request blocked:", {
-        isLoading: isLoadingRequestRef.current,
-        hasNextPage: currentHasNextPage,
-        lastRequested: lastRequestPageRef.current,
-        nextPage,
-      });
       return;
     }
-
-    console.log(`Loading page ${nextPage}...`);
 
     // Mark this page as being requested
     lastRequestPageRef.current = nextPage;
@@ -269,13 +253,10 @@ export function InfinitePostGrid({
     loadMorePosts();
   }, [loadMorePosts]);
 
-  // Memoize the posts array to prevent unnecessary re-renders
-  const memoizedPosts = useMemo(() => posts, [posts]);
-
   return (
     <div className="space-y-6">
       {/* Posts Grid */}
-      <PostMasonryGrid posts={memoizedPosts} userType={userType} />
+      <PostMasonryGrid posts={posts} userType={userType} />
 
       {/* Loading indicator and load more button */}
       <div ref={loadingRef} className="flex flex-col items-center space-y-4">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useLayoutEffect, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,241 +13,200 @@ interface PostMasonryGridProps {
   userType?: "FREE" | "PREMIUM" | null;
 }
 
-interface PostPosition {
-  id: string;
+interface Position {
   x: number;
   y: number;
-  height: number;
 }
 
-export function PostMasonryGrid({ posts, ...rest }: PostMasonryGridProps) {
-  void rest; // userType reserved for future use
-  const [postPositions, setPostPositions] = useState<PostPosition[]>([]);
+function getColumnCount(width: number): number {
+  if (width >= 1280) return 4;
+  if (width >= 1024) return 3;
+  if (width >= 640) return 2;
+  return 1;
+}
+
+export function PostMasonryGrid({ posts }: PostMasonryGridProps) {
+  const [positions, setPositions] = useState<Map<string, Position>>(new Map());
   const [containerHeight, setContainerHeight] = useState(0);
   const [columnWidth, setColumnWidth] = useState(0);
-  const [columnCount, setColumnCount] = useState(1);
-  const [previousPostCount, setPreviousPostCount] = useState(0);
+  const [visibleIds, setVisibleIds] = useState<Set<string>>(new Set());
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const postRefs = useRef<Record<string, HTMLDivElement>>({});
+  const postRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const prevPostIdsRef = useRef<Set<string>>(new Set());
 
-  // Calculate responsive column count and width
-  const calculateLayout = useCallback(() => {
-    if (!containerRef.current) return;
+  const computeLayout = useCallback(() => {
+    const container = containerRef.current;
+    if (!container || posts.length === 0) return;
 
-    const containerWidth = containerRef.current.offsetWidth;
-    const gap = 24; // 1.5rem = 24px
-    let cols = 1;
+    const containerWidth = container.offsetWidth;
+    if (!containerWidth) return;
 
-    // Responsive breakpoints matching CSS
-    if (containerWidth >= 1280) cols = 4;
-    else if (containerWidth >= 1024) cols = 3;
-    else if (containerWidth >= 640) cols = 2;
-    else cols = 1;
-
-    const width = (containerWidth - gap * (cols - 1)) / cols;
-
-    setColumnCount(cols);
-    setColumnWidth(width);
-  }, []);
-
-  // Calculate positions for masonry layout
-  const calculatePositions = useCallback(() => {
-    if (!containerRef.current || columnWidth === 0 || posts.length === 0) {
-      return;
-    }
-
+    const cols = getColumnCount(containerWidth);
     const gap = 24;
-    const columnHeights = new Array(columnCount).fill(0);
-    const newPositions: PostPosition[] = [];
+    const colWidth = (containerWidth - gap * (cols - 1)) / cols;
 
-    posts.forEach((post) => {
-      const postElement = postRefs.current[post.id];
-      if (!postElement) return;
-
-      // Find shortest column
-      const shortestColumnIndex = columnHeights.indexOf(
-        Math.min(...columnHeights)
-      );
-
-      const x = shortestColumnIndex * (columnWidth + gap);
-      const y = columnHeights[shortestColumnIndex];
-      const height = postElement.offsetHeight;
-
-      newPositions.push({
-        id: post.id,
-        x,
-        y,
-        height,
-      });
-
-      columnHeights[shortestColumnIndex] += height + gap;
-    });
-
-    setPostPositions(newPositions);
-    setContainerHeight(Math.max(...columnHeights) - gap);
-  }, [posts, columnWidth, columnCount]);
-
-  // Handle window resize
-  useEffect(() => {
-    const handleResize = () => {
-      calculateLayout();
-    };
-
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    calculateLayout();
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, [calculateLayout]);
-
-  // Recalculate positions when layout changes or posts change
-  useEffect(() => {
-    // Small delay to ensure DOM elements are rendered
-    const timer = setTimeout(() => {
-      calculatePositions();
-    }, 100);
-
-    return () => clearTimeout(timer);
-  }, [calculatePositions, posts.length]);
-
-  // Initialize visibility for initial posts and animate new ones
-  useEffect(() => {
-    if (posts.length === 0) return;
-
-    // If this is the initial load, show all posts immediately
-    if (previousPostCount === 0) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setPreviousPostCount(posts.length);
-    } else {
-      // If posts were added, animate them
-      const newPosts = posts.slice(previousPostCount);
-      if (newPosts.length > 0) {
-        // Animate them in with stagger
-        newPosts.forEach((_, index) => {
-          setTimeout(() => { }, index * 150); // 150ms delay between each post
-        });
-
-        setPreviousPostCount(posts.length);
-      }
+    // Set widths directly on elements before measuring heights so that
+    // text wrapping and element heights are accurate for the current column width.
+    for (const el of postRefs.current.values()) {
+      el.style.width = `${colWidth}px`;
     }
-  }, [posts, previousPostCount]);
 
-  // Observer for image loads to trigger recalculation
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      calculatePositions();
-    });
+    // Compute masonry positions using a column-heights bin-packing approach.
+    const columnHeights = new Array(cols).fill(0);
+    const newPositions = new Map<string, Position>();
 
-    if (containerRef.current) {
-      observer.observe(containerRef.current, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ["style"],
+    for (const post of posts) {
+      const el = postRefs.current.get(post.id);
+      if (!el) continue;
+
+      const shortest = columnHeights.indexOf(Math.min(...columnHeights));
+      newPositions.set(post.id, {
+        x: shortest * (colWidth + gap),
+        y: columnHeights[shortest],
+      });
+      columnHeights[shortest] += el.offsetHeight + gap;
+    }
+
+    const maxHeight =
+      columnHeights.length > 0
+        ? Math.max(0, Math.max(...columnHeights) - gap)
+        : 0;
+
+    // Batch all state updates — React 18 batches these into a single re-render.
+    setColumnWidth(colWidth);
+    setPositions(newPositions);
+    setContainerHeight(maxHeight);
+
+    // Stagger new posts into view. "New" means not present in the previous render.
+    const prevIds = prevPostIdsRef.current;
+    const newIds = posts.map((p) => p.id).filter((id) => !prevIds.has(id));
+    const isInitialLoad = prevIds.size === 0;
+
+    if (newIds.length > 0) {
+      const perItemDelay = isInitialLoad ? 40 : 60;
+      newIds.forEach((id, i) => {
+        setTimeout(() => {
+          setVisibleIds((prev) => new Set([...prev, id]));
+        }, i * perItemDelay);
       });
     }
 
+    prevPostIdsRef.current = new Set(posts.map((p) => p.id));
+  }, [posts]);
+
+  // useLayoutEffect fires synchronously after React commits DOM changes but
+  // before the browser paints. This eliminates the "jump" caused by the
+  // previous setTimeout(100) approach, where cards would sit at (0,0) for
+  // 100ms before snapping to their positions.
+  useLayoutEffect(() => {
+    computeLayout();
+  }, [computeLayout]);
+
+  // ResizeObserver is more precise than window "resize" and avoids the
+  // MutationObserver loop (which fired on every style change, including those
+  // triggered by computeLayout itself, causing infinite recalculation).
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const observer = new ResizeObserver(() => computeLayout());
+    observer.observe(container);
     return () => observer.disconnect();
-  }, [calculatePositions]);
+  }, [computeLayout]);
 
   return (
-    <>
-      <div
-        ref={containerRef}
-        className="relative w-full"
-        style={{ height: containerHeight }}
-      >
-        {posts.map((post) => {
-          const position = postPositions.find((p) => p.id === post.id);
+    <div
+      ref={containerRef}
+      className="relative w-full"
+      style={{ height: containerHeight, transition: "height 0.3s ease" }}
+    >
+      {posts.map((post) => {
+        const pos = positions.get(post.id);
+        const isVisible = visibleIds.has(post.id);
 
-          return (
-            <div
-              key={post.id}
-              ref={(el) => {
-                if (el) {
-                  postRefs.current[post.id] = el;
-                } else {
-                  // Clean up when element is unmounted
-                  const existingEl = postRefs.current[post.id];
-                  if (existingEl) {
-                    delete postRefs.current[post.id];
-                  }
-                }
-              }}
-              className="absolute transition-opacity duration-500 ease-in-out"
-              style={{
-                width: columnWidth,
-                left: position?.x || 0,
-                top: position?.y || 0,
-                opacity: position ? 1 : 0,
-                pointerEvents: position ? "auto" : "none",
-              }}
-            >
-              <Link href={`/entry/${post.id}`} scroll={false}>
-                <Card className="overflow-hidden hover:shadow-lg cursor-zoom-in py-0 shadow-lg">
-                  <div
-                    className="relative"
-                    style={{
-                      height: "auto",
-                      minHeight: "120px",
-                      maxHeight: "200px",
-                    }}
-                  >
+        return (
+          <div
+            key={post.id}
+            ref={(el) => {
+              if (el) postRefs.current.set(post.id, el);
+              else postRefs.current.delete(post.id);
+            }}
+            className="absolute"
+            style={{
+              width: columnWidth || "100%",
+              // transform is GPU-composited — avoids layout recalculation on
+              // every position change, unlike left/top which trigger reflow.
+              transform: pos
+                ? `translate(${pos.x}px, ${pos.y}px)`
+                : "translate(0px, 0px)",
+              opacity: pos && isVisible ? 1 : 0,
+              transition:
+                "transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease",
+              pointerEvents: pos && isVisible ? "auto" : "none",
+            }}
+          >
+            <Link href={`/entry/${post.id}`} scroll={false}>
+              <Card className="overflow-hidden hover:shadow-lg cursor-zoom-in py-0 shadow-lg">
+                <div
+                  className="relative"
+                  style={{
+                    height: "auto",
+                    minHeight: "120px",
+                    maxHeight: "200px",
+                  }}
+                >
+                  <div className="relative" style={{ height: "auto" }}>
+                    <PostTextBaseCard title={post.title} />
+                  </div>
+
+                  {/* Action buttons overlay */}
+                  <div className="absolute bottom-3 left-3 right-3 flex gap-2 items-end justify-between z-20">
+                    {/* Tags — bottom left */}
+                    <div className="flex items-center gap-1 flex-wrap">
+                      {post.tags.slice(0, 2).map((tag) => (
+                        <Badge
+                          key={tag.id}
+                          variant="outline"
+                          className="text-xs bg-background/80 backdrop-blur-sm border-black/20 dark:border-white/20"
+                        >
+                          {tag.name}
+                        </Badge>
+                      ))}
+                    </div>
+                    {/* Star button — bottom right */}
                     <div
-                      className="relative"
-                      style={{
-                        height: "auto",
-                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      onTouchStart={(e) => e.stopPropagation()}
+                      onTouchEnd={(e) => e.stopPropagation()}
                     >
-                      <PostTextBaseCard title={post.title} />
-                    </div>
-
-                    {/* Action buttons overlay */}
-                    <div className="absolute bottom-3 left-3 right-3 flex gap-2 items-end justify-between z-20">
-                      {/* Tags — bottom left */}
-                      <div className="flex items-center gap-1 flex-wrap">
-                        {post.tags.slice(0, 2).map((tag) => (
-                          <Badge
-                            key={tag.id}
-                            variant="outline"
-                            className="text-xs bg-background/80 backdrop-blur-sm border-black/20 dark:border-white/20"
-                          >
-                            {tag.name}
-                          </Badge>
-                        ))}
-                      </div>
-                      {/* Star button — bottom right */}
-                      <div
-                        onClick={(e) => e.stopPropagation()}
-                        onTouchStart={(e) => e.stopPropagation()}
-                        onTouchEnd={(e) => e.stopPropagation()}
-                      >
-                        <StarButton
-                          postId={post.id}
-                          className="border-1 border-black/20 dark:border-white/20 backdrop-blur-lg bg-background"
-                          initialStarred={post.isStarred || false}
-                        />
-                      </div>
+                      <StarButton
+                        postId={post.id}
+                        className="border-1 border-black/20 dark:border-white/20 backdrop-blur-lg bg-background"
+                        initialStarred={post.isStarred || false}
+                      />
                     </div>
                   </div>
-                </Card>
-              </Link>
+                </div>
+              </Card>
+            </Link>
 
-              {/* Content overlay positioned outside the Card */}
-              <div className="z-10 mx-3 border border-t-0 rounded-b-lg border-black/20 dark:border-white/20">
-                <div className="bg-background-muted backdrop-blur-sm rounded-b-lg px-4 py-2 text-xs text-muted-foreground">
-                  <div className="flex items-center justify-between gap-2">
-                    <Badge variant="secondary" className="text-xs shrink-0">
-                      {post.category.parent?.name || post.category.name}
-                    </Badge>
-                    <span className="truncate text-right">{post.author.name || "Unknown"}</span>
-                  </div>
+            {/* Content footer — outside the Card, matching original layout */}
+            <div className="z-10 mx-3 border border-t-0 rounded-b-lg border-black/20 dark:border-white/20">
+              <div className="bg-background-muted backdrop-blur-sm rounded-b-lg px-4 py-2 text-xs text-muted-foreground">
+                <div className="flex items-center justify-between gap-2">
+                  <Badge variant="secondary" className="text-xs shrink-0">
+                    {post.category.parent?.name || post.category.name}
+                  </Badge>
+                  <span className="truncate text-right">
+                    {post.author.name || "Unknown"}
+                  </span>
                 </div>
               </div>
             </div>
-          );
-        })}
-      </div>
-    </>
+          </div>
+        );
+      })}
+    </div>
   );
 }
