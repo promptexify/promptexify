@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { PostMasonryGrid } from "@/components/post-masonry-grid";
 import { PostWithInteractions } from "@/lib/content";
