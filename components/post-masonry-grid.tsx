@@ -30,10 +30,14 @@ export function PostMasonryGrid({ posts }: PostMasonryGridProps) {
   const [containerHeight, setContainerHeight] = useState(0);
   const [columnWidth, setColumnWidth] = useState(0);
   const [visibleIds, setVisibleIds] = useState<Set<string>>(new Set());
+  // Only enable the position transition after the first layout so cards
+  // don't animate from (0,0) to their final positions on initial paint.
+  const [positionTransitionReady, setPositionTransitionReady] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const postRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const prevPostIdsRef = useRef<Set<string>>(new Set());
+  const isFirstLayoutRef = useRef(true);
 
   const computeLayout = useCallback(() => {
     const container = containerRef.current;
@@ -84,12 +88,20 @@ export function PostMasonryGrid({ posts }: PostMasonryGridProps) {
     const isInitialLoad = prevIds.size === 0;
 
     if (newIds.length > 0) {
-      const perItemDelay = isInitialLoad ? 40 : 60;
+      const perItemDelay = isInitialLoad ? 50 : 60;
       newIds.forEach((id, i) => {
         setTimeout(() => {
           setVisibleIds((prev) => new Set([...prev, id]));
         }, i * perItemDelay);
       });
+
+      // Enable position transitions (for resize reflows) only after all
+      // initial cards have faded in, so the first paint has no transform animation.
+      if (isFirstLayoutRef.current) {
+        isFirstLayoutRef.current = false;
+        const totalFadeMs = newIds.length * perItemDelay + 400;
+        setTimeout(() => setPositionTransitionReady(true), totalFadeMs);
+      }
     }
 
     prevPostIdsRef.current = new Set(posts.map((p) => p.id));
@@ -126,6 +138,10 @@ export function PostMasonryGrid({ posts }: PostMasonryGridProps) {
         const isVisible = visibleIds.has(post.id);
 
         return (
+          // Outer wrapper: handles masonry X/Y positioning only.
+          // No transition on first paint — cards are placed directly at their
+          // final positions. After initial fade-in completes, smooth transitions
+          // are enabled for resize reflows.
           <div
             key={post.id}
             ref={(el) => {
@@ -135,72 +151,83 @@ export function PostMasonryGrid({ posts }: PostMasonryGridProps) {
             className="absolute"
             style={{
               width: columnWidth || "100%",
-              // transform is GPU-composited — avoids layout recalculation on
-              // every position change, unlike left/top which trigger reflow.
               transform: pos
                 ? `translate(${pos.x}px, ${pos.y}px)`
                 : "translate(0px, 0px)",
-              opacity: pos && isVisible ? 1 : 0,
-              transition:
-                "transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease",
-              pointerEvents: pos && isVisible ? "auto" : "none",
+              transition: positionTransitionReady
+                ? "transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)"
+                : "none",
+              // Keep invisible until we have a computed position so nothing
+              // stacks at the origin before the first layout.
+              visibility: pos ? "visible" : "hidden",
             }}
           >
-            <Link href={`/entry/${post.id}`} scroll={false}>
-              <Card className="overflow-hidden hover:shadow-lg cursor-zoom-in py-0 shadow-lg">
-                <div
-                  className="relative"
-                  style={{
-                    height: "auto",
-                    minHeight: "120px",
-                    maxHeight: "200px",
-                  }}
-                >
-                  <div className="relative" style={{ height: "auto" }}>
-                    <PostTextBaseCard title={post.title} />
-                  </div>
-
-                  {/* Action buttons overlay */}
-                  <div className="absolute bottom-3 left-3 right-3 flex gap-2 items-end justify-between z-20">
-                    {/* Tags — bottom left */}
-                    <div className="flex items-center gap-1 flex-wrap">
-                      {post.tags.slice(0, 2).map((tag) => (
-                        <Badge
-                          key={tag.id}
-                          variant="outline"
-                          className="text-xs bg-background/80 backdrop-blur-sm border-black/20 dark:border-white/20"
-                        >
-                          {tag.name}
-                        </Badge>
-                      ))}
+            {/* Inner wrapper: handles the reveal animation (fade + slide-up).
+                Separated from the position transform so they never conflict. */}
+            <div
+              style={{
+                opacity: isVisible ? 1 : 0,
+                transform: isVisible ? "translateY(0)" : "translateY(14px)",
+                transition: "opacity 0.3s ease, transform 0.3s ease",
+                pointerEvents: isVisible ? "auto" : "none",
+              }}
+            >
+              <Link href={`/entry/${post.id}`} scroll={false}>
+                <Card className="overflow-hidden hover:shadow-lg cursor-zoom-in py-0 shadow-lg">
+                  <div
+                    className="relative"
+                    style={{
+                      height: "auto",
+                      minHeight: "120px",
+                      maxHeight: "200px",
+                    }}
+                  >
+                    <div className="relative" style={{ height: "auto" }}>
+                      <PostTextBaseCard title={post.title} />
                     </div>
-                    {/* Star button — bottom right */}
-                    <div
-                      onClick={(e) => e.stopPropagation()}
-                      onTouchStart={(e) => e.stopPropagation()}
-                      onTouchEnd={(e) => e.stopPropagation()}
-                    >
-                      <StarButton
-                        postId={post.id}
-                        className="border-1 border-black/20 dark:border-white/20 backdrop-blur-lg bg-background"
-                        initialStarred={post.isStarred || false}
-                      />
+
+                    {/* Action buttons overlay */}
+                    <div className="absolute bottom-3 left-3 right-3 flex gap-2 items-end justify-between z-20">
+                      {/* Tags — bottom left */}
+                      <div className="flex items-center gap-1 flex-wrap">
+                        {post.tags.slice(0, 2).map((tag) => (
+                          <Badge
+                            key={tag.id}
+                            variant="outline"
+                            className="text-xs bg-background/80 backdrop-blur-sm border-black/20 dark:border-white/20"
+                          >
+                            {tag.name}
+                          </Badge>
+                        ))}
+                      </div>
+                      {/* Star button — bottom right */}
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        onTouchStart={(e) => e.stopPropagation()}
+                        onTouchEnd={(e) => e.stopPropagation()}
+                      >
+                        <StarButton
+                          postId={post.id}
+                          className="border-1 border-black/20 dark:border-white/20 backdrop-blur-lg bg-background"
+                          initialStarred={post.isStarred || false}
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
-              </Card>
-            </Link>
+                </Card>
+              </Link>
 
-            {/* Content footer — outside the Card, matching original layout */}
-            <div className="z-10 mx-3 border border-t-0 rounded-b-lg border-black/20 dark:border-white/20">
-              <div className="bg-background-muted backdrop-blur-sm rounded-b-lg px-4 py-2 text-xs text-muted-foreground">
-                <div className="flex items-center justify-between gap-2">
-                  <Badge variant="secondary" className="text-xs shrink-0">
-                    {post.category.parent?.name || post.category.name}
-                  </Badge>
-                  <span className="truncate text-right">
-                    {post.author.name || "Unknown"}
-                  </span>
+              {/* Content footer — outside the Card, matching original layout */}
+              <div className="z-10 mx-3 border border-t-0 rounded-b-lg border-black/20 dark:border-white/20">
+                <div className="bg-background-muted backdrop-blur-sm rounded-b-lg px-4 py-2 text-xs text-muted-foreground">
+                  <div className="flex items-center justify-between gap-2">
+                    <Badge variant="secondary" className="text-xs shrink-0">
+                      {post.category.name}
+                    </Badge>
+                    <span className="truncate text-right">
+                      {post.author.name || "Unknown"}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
