@@ -470,6 +470,61 @@ export const settings = pgTable(
 ).enableRLS();
 
 // -----------------------------------------------------------------------------
+// Blog posts (admin-authored articles; read all published; write admin only)
+// -----------------------------------------------------------------------------
+
+export const blogStatusEnum = pgEnum("BlogStatus", ["DRAFT", "PUBLISHED"]);
+export type BlogStatus = "DRAFT" | "PUBLISHED";
+
+export const blogPosts = pgTable(
+  "blog_posts",
+  {
+    id:               text("id").primaryKey().default(sql`gen_random_uuid()::text`),
+    slug:             text("slug").notNull().unique(),
+    title:            text("title").notNull(),
+    excerpt:          text("excerpt"),
+    content:          text("content").notNull().default(""),
+    featuredImageUrl: text("featuredImageUrl"),
+    readingTime:      integer("readingTime"),
+    authorId:         text("authorId").notNull().references(() => users.id, { onDelete: "set null" }),
+    status:           blogStatusEnum("status").default("DRAFT").notNull(),
+    publishedAt:      timestamp("publishedAt", { withTimezone: true }),
+    createdAt:        timestamp("createdAt").defaultNow().notNull(),
+    updatedAt:        timestamp("updatedAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("blog_posts_status_published_at_idx").on(t.status, t.publishedAt),
+    index("blog_posts_slug_status_idx").on(t.slug).where(sql`"status" = 'PUBLISHED'`),
+    index("blog_posts_author_created_at_idx").on(t.authorId, t.createdAt),
+    pgPolicy("blog_posts_select_published_or_admin", {
+      as: "permissive",
+      for: "select",
+      to: "public",
+      using: sql`"status" = 'PUBLISHED' OR ${isAdmin}`,
+    }),
+    pgPolicy("blog_posts_insert_admin", {
+      as: "permissive",
+      for: "insert",
+      to: "public",
+      withCheck: isAdmin,
+    }),
+    pgPolicy("blog_posts_update_admin", {
+      as: "permissive",
+      for: "update",
+      to: "public",
+      using: isAdmin,
+      withCheck: isAdmin,
+    }),
+    pgPolicy("blog_posts_delete_admin", {
+      as: "permissive",
+      for: "delete",
+      to: "public",
+      using: isAdmin,
+    }),
+  ]
+).enableRLS();
+
+// -----------------------------------------------------------------------------
 // Relation types for Drizzle relational queries (optional)
 // -----------------------------------------------------------------------------
 
@@ -513,4 +568,8 @@ export const starsRelations = relations(stars, ({ one }) => ({
 export const postToTagRelations = relations(postToTag, ({ one }) => ({
   post: one(posts, { fields: [postToTag.A], references: [posts.id] }),
   tag: one(tags, { fields: [postToTag.B], references: [tags.id] }),
+}));
+
+export const blogPostsRelations = relations(blogPosts, ({ one }) => ({
+  author: one(users, { fields: [blogPosts.authorId], references: [users.id] }),
 }));

@@ -139,6 +139,11 @@ export const pageSEOConfigs = {
     description:
       "Cursor rule, MCP config, Claude Code skill, or AI coding prompt. Copy and use immediately with your AI coding tools.",
   },
+  blog: {
+    title: "Blog",
+    description:
+      "Articles, guides, and insights on Cursor rules, MCP configs, Claude Code, and AI-powered development workflows.",
+  },
 } as const;
 
 export function getMetadata(pageType: keyof typeof pageSEOConfigs) {
@@ -184,7 +189,6 @@ export function generatePostMetadata(post: {
   ].filter(Boolean) as string[];
 
   const canonicalUrl = `${baseUrl}/entry/${post.id}`;
-  const ogImage = `${baseUrl}/static/og-image.png`;
 
   // Cap description at 160 chars to prevent Google from truncating with its own ellipsis
   const cappedDescription =
@@ -204,7 +208,7 @@ export function generatePostMetadata(post: {
       locale: "en_US",
       url: canonicalUrl,
       siteName: "Promptexify",
-      images: [{ url: ogImage, width: 1200, height: 630, alt: title }],
+      // og:image is handled by opengraph-image.tsx co-located with the entry page
       publishedTime: post.createdAt?.toISOString(),
       modifiedTime: post.updatedAt?.toISOString(),
       authors: post.author?.name ? [post.author.name] : undefined,
@@ -215,7 +219,7 @@ export function generatePostMetadata(post: {
       card: "summary_large_image",
       title,
       description: cappedDescription,
-      images: [ogImage],
+      // twitter:image is auto-resolved from opengraph-image.tsx
       site: "@promptexify",
       creator: "@promptexify",
     },

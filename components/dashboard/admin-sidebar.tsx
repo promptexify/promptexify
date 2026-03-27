@@ -11,6 +11,7 @@ import {
   IconCategory,
   IconStar,
   IconUserCircle,
+  IconNews,
   type Icon,
 } from "@/components/ui/icons";
 import Link from "next/link";
@@ -96,6 +97,12 @@ const navigationData: {
       icon: IconEdit,
       // adminOnly: true, // Admin only
       allowUser: true, // Allow both USER and ADMIN roles (Temporary disabled)
+    },
+    {
+      title: "Blog",
+      url: "/blog/admin",
+      icon: IconNews,
+      adminOnly: true,
     },
     {
       title: "Categories",

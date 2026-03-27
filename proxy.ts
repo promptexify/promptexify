@@ -108,6 +108,36 @@ export async function proxy(request: NextRequest) {
       sameSite: "strict",
     });
 
+    // ------------------------------------------------------------------
+    // CSRF TOKEN INJECTION
+    //
+    // Read or mint the CSRF token here in middleware so that Server Components
+    // can forward it to the React tree via CsrfClientProvider — eliminating
+    // the need for a client-side GET /api/v1/csrf round-trip on page load.
+    //
+    // Pattern mirrors x-user-id: always delete first to prevent client forgery,
+    // then stamp the authoritative value derived from the request cookie.
+    // ------------------------------------------------------------------
+    requestHeaders.delete("x-csrf-token-value");
+
+    const csrfCookieName = CSRFProtection.getCookieName();
+    const existingCsrfToken = request.cookies.get(csrfCookieName)?.value;
+    const csrfTokenValue = existingCsrfToken ?? CSRFProtection.generateToken();
+
+    requestHeaders.set("x-csrf-token-value", csrfTokenValue);
+
+    // If we minted a new token (no cookie existed), persist it as a response
+    // cookie so the browser carries it on all subsequent requests.
+    if (!existingCsrfToken) {
+      response.cookies.set(csrfCookieName, csrfTokenValue, {
+        httpOnly: true,
+        secure: proto === "https",
+        sameSite: "strict",
+        path: "/",
+        maxAge: 60 * 60, // 1 hour — matches /api/v1/csrf route
+      });
+    }
+
     // Apply security headers with CSP
     const securityHeaders = SecurityHeaders.getSecurityHeaders(nonce);
     Object.entries(securityHeaders).forEach(([key, value]) => {

@@ -48,6 +48,7 @@ import {
   IconCrown,
   IconX,
   IconFileText,
+  IconNews,
 } from "@tabler/icons-react";
 
 // Re-export Tabler icons individually so callers can `import { IconExternalLink } from "@/components/ui/icons"` without touching the Tabler package.
@@ -85,6 +86,7 @@ export {
   IconCrown,
   IconX,
   IconFileText,
+  IconNews,
 };
 
 export type { Icon } from "@tabler/icons-react";

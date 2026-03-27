@@ -9,6 +9,8 @@ import { getPostsPageSize } from "@/lib/settings";
 import { SafeAsync } from "@/components/ui/safe-async";
 import { Container } from "@/components/ui/container";
 import { getMetadata } from "@/config/seo";
+import { getBaseUrl } from "@/lib/utils";
+import { safeJsonLd } from "@/lib/security/sanitize";
 
 export const metadata = getMetadata("directory");
 
@@ -164,11 +166,43 @@ async function DirectoryContent({
 }
 
 export default function DirectoryPage({ searchParams }: DirectoryPageProps) {
+  const baseUrl = getBaseUrl();
+
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: baseUrl },
+      { "@type": "ListItem", position: 2, name: "Directory", item: `${baseUrl}/directory` },
+    ],
+  };
+
+  const collectionPageJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    "@id": `${baseUrl}/directory#collection`,
+    name: "Prompts & Rules Directory",
+    description: "Browse Cursor rules, MCP configs, Claude Code skills, and AI coding prompts.",
+    url: `${baseUrl}/directory`,
+    isPartOf: { "@id": `${baseUrl}/#website` },
+    inLanguage: "en-US",
+  };
+
   return (
-    <Suspense fallback={<DirectoryPageSkeleton />}>
-      <SafeAsync>
-        <DirectoryContent searchParams={searchParams} />
-      </SafeAsync>
-    </Suspense>
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(collectionPageJsonLd) }}
+      />
+      <Suspense fallback={<DirectoryPageSkeleton />}>
+        <SafeAsync>
+          <DirectoryContent searchParams={searchParams} />
+        </SafeAsync>
+      </Suspense>
+    </>
   );
 }

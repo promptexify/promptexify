@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { getPostsForSitemap, getAllCategories } from "@/lib/content";
+import { getBlogPostForSitemap } from "@/lib/blog-query";
 import { getBaseUrl } from "@/lib/utils";
 
 function getChangeFrequency(
@@ -31,6 +32,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: new Date("2025-03-01"),
       changeFrequency: "daily",
       priority: 0.9,
+    },
+    {
+      url: `${baseUrl}/blog`,
+      lastModified: new Date(),
+      changeFrequency: "weekly",
+      priority: 0.8,
     },
     {
       url: `${baseUrl}/features`,
@@ -98,5 +105,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // Return partial sitemap on DB error
   }
 
-  return [...staticUrls, ...categoryUrls, ...postUrls];
+  // Blog post pages
+  let blogUrls: MetadataRoute.Sitemap = [];
+  try {
+    const blogPosts = await getBlogPostForSitemap();
+    blogUrls = blogPosts.map((post) => ({
+      url: `${baseUrl}/blog/${post.slug}`,
+      lastModified: post.updatedAt,
+      changeFrequency: getChangeFrequency(post.updatedAt),
+      priority: 0.8,
+    }));
+  } catch {
+    // Return partial sitemap on DB error
+  }
+
+  return [...staticUrls, ...categoryUrls, ...postUrls, ...blogUrls];
 }

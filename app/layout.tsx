@@ -3,6 +3,7 @@ import "./globals.css";
 
 import { ThemeProvider } from "@/components/ui/theme";
 import { Toaster } from "@/components/ui/sonner";
+import { CsrfClientProvider } from "@/components/csrf-provider";
 import { headers } from "next/headers";
 import { seoConfig } from "@/config/seo";
 import { getBaseUrl } from "@/lib/utils";
@@ -25,9 +26,10 @@ export default async function RootLayout({
   children: React.ReactNode;
   modal: React.ReactNode;
 }>) {
-  // Get CSP nonce for inline scripts/styles
+  // Get CSP nonce and CSRF token — both stamped by middleware into request headers
   const headersList = await headers();
   const nonce = headersList.get("x-nonce") || "";
+  const csrfToken = headersList.get("x-csrf-token-value") || null;
   const isProduction = process.env.NODE_ENV === "production";
 
   return (
@@ -60,6 +62,7 @@ export default async function RootLayout({
         <link rel="manifest" href="/static/favicon/site.webmanifest" />
         <meta name="theme-color" content="#ffffff" />
         <meta name="msapplication-TileColor" content="#ffffff" />
+        <link rel="alternate" type="application/rss+xml" title="Promptexify Blog" href="/blog/rss.xml" />
 
         {/* Structured data — Organization + WebSite with SearchAction */}
         <script
@@ -123,6 +126,7 @@ export default async function RootLayout({
         )}
       </head>
       <body className={GeistMono.className}>
+        <CsrfClientProvider token={csrfToken}>
         <ThemeProvider
           attribute="class"
           defaultTheme="light"
@@ -136,6 +140,7 @@ export default async function RootLayout({
           <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GA_ID || ""} />
           <Toaster />
         </ThemeProvider>
+        </CsrfClientProvider>
       </body>
     </html>
   );

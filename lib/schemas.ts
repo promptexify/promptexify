@@ -449,6 +449,46 @@ export const postImportSchema = z.object({
 
 export type PostImportData = z.infer<typeof postImportSchema>;
 
+// ---------------------------------------------------------------------------
+// Blog schemas
+// ---------------------------------------------------------------------------
+
+const blogSlugSchema = z
+  .string()
+  .trim()
+  .max(200, "Slug must be 200 characters or less")
+  .optional()
+  .transform((v) => v || null)
+  .refine((v) => !v || /^[a-z0-9-]+$/.test(v), "Slug can only contain lowercase letters, numbers, and hyphens")
+  .refine((v) => !v || (!v.startsWith("-") && !v.endsWith("-")), "Slug cannot start or end with hyphens")
+  .refine((v) => !v || !v.includes("--"), "Slug cannot contain consecutive hyphens");
+
+export const createBlogPostFormSchema = z.object({
+  title:            z.string().trim().min(1, "Title is required").max(200, "Title must be 200 characters or less"),
+  slug:             blogSlugSchema,
+  excerpt:          z.string().max(500, "Excerpt must be 500 characters or less").trim().optional().transform((v) => v || null),
+  content:          z.string().min(1, "Content is required").max(200000, "Content must be 200,000 characters or less"),
+  featuredImageUrl: z.union([z.string().url("Invalid image URL"), z.literal("")]).optional().transform((v) => v === "" || !v ? null : v),
+  status:           z.enum(["DRAFT", "PUBLISHED"]).default("DRAFT"),
+});
+
+export const updateBlogPostFormSchema = createBlogPostFormSchema.extend({
+  id: z.string().min(1, "ID is required"),
+});
+
+export const blogBulkImportItemSchema = z.object({
+  title:            z.string().min(1, "title is required").max(200).trim(),
+  content:          z.string().min(1, "content is required").max(200000).trim(),
+  excerpt:          z.string().max(500).trim().optional(),
+  slug:             z.string().max(200).regex(/^[a-z0-9-]*$/, "slug must be lowercase letters, numbers, hyphens").optional(),
+  featuredImageUrl: z.union([z.string().url("invalid URL"), z.literal("")]).optional(),
+  status:           z.enum(["DRAFT", "PUBLISHED"]).default("DRAFT"),
+});
+
+export type CreateBlogPostFormData = z.infer<typeof createBlogPostFormSchema>;
+export type UpdateBlogPostFormData = z.infer<typeof updateBlogPostFormSchema>;
+export type BlogBulkImportItem = z.infer<typeof blogBulkImportItemSchema>;
+
 // Type exports
 export type MagicLinkData = z.infer<typeof magicLinkSchema>;
 export type SignInData = z.infer<typeof signInSchema>;

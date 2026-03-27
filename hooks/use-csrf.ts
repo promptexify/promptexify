@@ -1,14 +1,17 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useCsrfContext } from "@/components/csrf-provider";
 
 // ---------------------------------------------------------------------------
 // Module-level singleton cache
 //
 // Shared across ALL useCSRF() callers in the same browser tab.
 // - Only ONE /api/v1/csrf request is ever in-flight at a time (pendingFetch).
-// - Subsequent mounts reuse the cached token until it expires (23 h, slightly
-//   below the server's 24 h cookie maxAge so we never send a stale token).
+// - On page load the cache is seeded synchronously from the server-injected
+//   context token (see useCSRF), so no network request is needed at all.
+// - After 55 minutes the cache expires and refreshToken() / the useEffect
+//   fallback re-fetches from /api/v1/csrf (token still valid on the server).
 // - refreshToken() busts the cache and forces a new fetch.
 // ---------------------------------------------------------------------------
 
@@ -72,6 +75,21 @@ interface CSRFHookReturn {
 // ---------------------------------------------------------------------------
 
 export function useCSRF(): CSRFHookReturn {
+  // Seed the module-level cache from the server-injected context token.
+  // This runs in the render phase (before useState initializers) so that
+  // isCacheValid() returns true on the very first render, eliminating the
+  // loading state and the GET /api/v1/csrf round-trip entirely.
+  //
+  // The mutation is idempotent — seeding the same token value twice is safe.
+  // React Strict Mode double-invokes renders in dev; this is fine because
+  // cachedToken/cacheExpiresAt are not React state and the second seed is a
+  // no-op (isCacheValid() returns true after the first seed).
+  const contextToken = useCsrfContext();
+  if (contextToken && !isCacheValid()) {
+    cachedToken = contextToken;
+    cacheExpiresAt = Date.now() + CACHE_DURATION_MS;
+  }
+
   const [token, setToken] = useState<string | null>(() => (isCacheValid() ? cachedToken : null));
   const [isLoading, setIsLoading] = useState(!isCacheValid());
   const [error, setError] = useState<string | null>(null);

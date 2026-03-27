@@ -6,10 +6,10 @@ export const runtime = "edge";
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const title = searchParams.get("title") || "Promptexify - Directory for the New Coding Era";
+    const title = searchParams.get("title") || "Promptexify — Cursor Rules, MCP & Claude Code Prompts";
     const description =
       searchParams.get("description") ||
-      "AI Prompt Directory for ChatGPT, Claude, Midjourney & DALL-E";
+      "The largest directory of Cursor rules, MCP configs, Claude Code skills, and AI coding prompts.";
     // Optional type parameter for future use
     // const type = searchParams.get("type") || "website";
 
@@ -112,7 +112,7 @@ export async function GET(request: NextRequest) {
                 justifyContent: "center",
               }}
             >
-              {["ChatGPT", "Claude", "Midjourney", "DALL-E"].map((platform) => (
+              {["Cursor Rules", "Claude Code", "MCP Configs", "AI Prompts"].map((platform) => (
                 <div
                   key={platform}
                   style={{

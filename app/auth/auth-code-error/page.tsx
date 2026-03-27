@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import {
   Card,
   CardContent,
@@ -8,6 +9,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { AlertTriangle } from "@/components/ui/icons";
 import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "Authentication Error",
+  robots: { index: false, follow: false },
+};
 
 export default function AuthCodeErrorPage() {
   return (

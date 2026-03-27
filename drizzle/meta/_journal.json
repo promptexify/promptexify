@@ -78,6 +78,13 @@
       "when": 1774058108368,
       "tag": "0010_remarkable_sunspot",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1774578756027,
+      "tag": "0011_grey_nicolaos",
+      "breakpoints": true
     }
   ]
 }

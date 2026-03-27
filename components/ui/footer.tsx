@@ -37,6 +37,11 @@ export function Footer({ parentCategories = [] }: { parentCategories?: ParentCat
               <h3 className="font-semibold text-sm">Explore</h3>
               <ul className="space-y-2 text-sm">
                 <li>
+                  <Link href="/blog" className="text-muted-foreground hover:text-foreground transition-colors">
+                    Blog
+                  </Link>
+                </li>
+                <li>
                   <Link href="/features" className="text-muted-foreground hover:text-foreground transition-colors">
                     Features
                   </Link>

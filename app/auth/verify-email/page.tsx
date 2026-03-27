@@ -1,5 +1,11 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { CheckCircle, Mail } from "@/components/ui/icons";
+
+export const metadata: Metadata = {
+  title: "Check Your Email",
+  robots: { index: false, follow: false },
+};
 import {
   Card,
   CardContent,

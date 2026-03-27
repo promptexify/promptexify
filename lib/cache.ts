@@ -18,6 +18,9 @@ export const CACHE_TAGS = {
   POPULAR_POSTS: "popular-posts",
   ANALYTICS: "analytics",
   ADMIN_STATS: "admin-stats",
+  BLOG_POSTS: "blog-posts",
+  BLOG_POST_BY_SLUG: "blog-post-by-slug",
+  BLOG_POST_BY_ID: "blog-post-by-id",
 } as const;
 
 export const CACHE_DURATIONS = {

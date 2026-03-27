@@ -1,6 +1,11 @@
+import type { Metadata } from "next";
 import { requireAuth } from "@/lib/auth";
 import { SecurityEvents } from "@/lib/security/audit";
 import { headers } from "next/headers";
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 // Force dynamic rendering for authentication-dependent routes
 // This is required because authentication checks use cookies
