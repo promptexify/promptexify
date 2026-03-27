@@ -25,7 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { ArrowLeft, Upload, FileJson, CheckCircle2, AlertCircle, Loader2, X } from "lucide-react";
+import { ArrowLeft, Upload, FileJson, CheckCircle2, AlertCircle, Loader2, X, ClipboardCopy } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useCSRFForm } from "@/hooks/use-csrf";
@@ -142,6 +142,8 @@ export default function BlogImportPage() {
   }
   if (user.userData?.role !== "ADMIN") return null;
 
+  const isImporting = stage === "importing";
+
   return (
     <SidebarProvider
       style={{ "--sidebar-width": "200px", "--header-height": "calc(var(--spacing) * 12)" } as React.CSSProperties}
@@ -179,12 +181,16 @@ export default function BlogImportPage() {
                       className="min-h-[240px] font-mono text-xs border-0 bg-transparent resize-none focus-visible:ring-0 focus-visible:ring-offset-0"
                       spellCheck={false}
                       placeholder={raw ? undefined : PLACEHOLDER}
+                      disabled={isImporting}
                     />
                   </div>
                   <div className="flex items-center gap-2">
                     <input ref={fileInputRef} type="file" accept=".json,application/json" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileRead(f); }} />
                     <Button type="button" variant="ghost" size="sm" onClick={() => fileInputRef.current?.click()}>
                       <Upload className="mr-2 h-4 w-4" />Browse file…
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => { navigator.clipboard.writeText(PLACEHOLDER); toast.success("Template copied to clipboard"); }}>
+                      <ClipboardCopy className="mr-2 h-4 w-4" />Copy template
                     </Button>
                     {raw && (
                       <Button type="button" variant="ghost" size="sm" onClick={handleClear}>
@@ -211,8 +217,12 @@ export default function BlogImportPage() {
                           {invalidItems.length > 0 ? <span className="text-destructive">{invalidItems.length} invalid (will be skipped)</span> : "0 invalid"}
                         </CardDescription>
                       </div>
-                      <Button onClick={() => { setStage("importing"); handleImport(); }} disabled={validItems.length === 0}>
-                        <>Import {validItems.length} article{validItems.length !== 1 ? "s" : ""}</>
+                      <Button onClick={handleImport} disabled={validItems.length === 0 || isImporting}>
+                        {isImporting ? (
+                          <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Importing…</>
+                        ) : (
+                          <>Import {validItems.length} article{validItems.length !== 1 ? "s" : ""}</>
+                        )}
                       </Button>
                     </div>
                   </CardHeader>

@@ -33,6 +33,7 @@ import {
   AlertCircle,
   Loader2,
   X,
+  ClipboardCopy,
 } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -68,14 +69,12 @@ interface Category {
 const PLACEHOLDER = `[
   {
     "title": "Summarise in 3 Bullets",
-    "content": "You are a concise assistant. Summarise the following text in exactly three bullet points...",
     "category": "writing",
     "description": "Condenses any text to three bullet points",
     "tags": ["summarization", "productivity"]
   },
   {
     "title": "Code Review Assistant",
-    "content": "Review the following code for bugs, security issues, and style...",
     "category": "coding",
     "tags": ["code-review", "debugging"]
   }
@@ -315,16 +314,11 @@ export default function BulkImportPage() {
                     Paste a JSON array or drop a{" "}
                     <code className="text-xs">.json</code> file. Each item
                     needs at minimum{" "}
-                    <code className="text-xs">title</code>,{" "}
-                    <code className="text-xs">content</code>, and{" "}
+                    <code className="text-xs">title</code> and{" "}
                     <code className="text-xs">category</code> (use a category
                     slug, e.g. <code className="text-xs">writing</code>).
-                    Maximum 50 posts per import.{" "}
-                    <code className="text-xs">
-                      Import multiple posts at once from a JSON file. All posts are
-                      created as <strong>drafts</strong> — review and publish after
-                      import.
-                    </code>
+                    Maximum 50 posts per import. All posts are created as{" "}
+                    <strong>drafts</strong> — review and publish after import.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -373,6 +367,18 @@ export default function BulkImportPage() {
                     >
                       <Upload className="mr-2 h-4 w-4" />
                       Browse file…
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(PLACEHOLDER);
+                        toast.success("Template copied to clipboard");
+                      }}
+                    >
+                      <ClipboardCopy className="mr-2 h-4 w-4" />
+                      Copy template
                     </Button>
                     {raw && (
                       <Button
@@ -515,7 +521,6 @@ function PreviewTable({ items }: { items: ParsedItem[] }) {
           <TableHead className="w-8">#</TableHead>
           <TableHead>Title</TableHead>
           <TableHead>Category</TableHead>
-          <TableHead>Content</TableHead>
           <TableHead>Tags</TableHead>
           <TableHead className="w-8"></TableHead>
         </TableRow>
@@ -550,11 +555,6 @@ function PreviewTable({ items }: { items: ParsedItem[] }) {
                 ) : (
                   <span className="text-muted-foreground text-xs">—</span>
                 )}
-              </TableCell>
-              <TableCell className="text-xs text-muted-foreground">
-                {item.data
-                  ? `${item.data.content.length.toLocaleString()} chars`
-                  : "—"}
               </TableCell>
               <TableCell>
                 <div className="flex flex-wrap gap-1">

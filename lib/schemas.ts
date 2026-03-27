@@ -376,7 +376,22 @@ export type UpdatePostFormData = z.infer<typeof updatePostFormSchema>;
 
 // Bulk import schema — each item in a JSON array must include a category slug.
 // Used both client-side (preview validation) and server-side (action validation).
-export const postBulkImportItemSchema = z.object({
+// Normalise legacy `prompt` field → `content` before Zod parses the object.
+// Allows JSON templates that use "prompt" as the field name to work alongside
+// the canonical "content" field.
+function normalisePromptField(raw: unknown): unknown {
+  if (raw !== null && typeof raw === "object" && !Array.isArray(raw)) {
+    const obj = raw as Record<string, unknown>;
+    if (obj["content"] === undefined && obj["prompt"] !== undefined) {
+      return { ...obj, content: obj["prompt"] };
+    }
+  }
+  return raw;
+}
+
+export const postBulkImportItemSchema = z.preprocess(
+  normalisePromptField,
+  z.object({
   title: z
     .string()
     .min(1, "title is required")
@@ -384,9 +399,10 @@ export const postBulkImportItemSchema = z.object({
     .trim(),
   content: z
     .string()
-    .min(10, "content must be at least 10 characters")
     .max(50000, "content must be 50,000 characters or less")
-    .trim(),
+    .trim()
+    .optional()
+    .default(""),
   category: z
     .string()
     .min(1, "category is required")
@@ -409,14 +425,17 @@ export const postBulkImportItemSchema = z.object({
     .max(20, "maximum 20 tags allowed")
     .optional()
     .default([]),
-});
+}));
 
 export type PostBulkImportItem = z.infer<typeof postBulkImportItemSchema>;
 
 // JSON import schema — used client-side to validate pasted/dropped JSON before
 // populating the post form. Intentionally more permissive than createPostFormSchema
 // (e.g. no category) because import only fills in the text-level fields.
-export const postImportSchema = z.object({
+// Accepts "prompt" as a legacy alias for "content".
+export const postImportSchema = z.preprocess(
+  normalisePromptField,
+  z.object({
   title: z
     .string()
     .min(1, "title is required")
@@ -445,7 +464,7 @@ export const postImportSchema = z.object({
     .max(20, "maximum 20 tags allowed")
     .optional()
     .default([]),
-});
+}));
 
 export type PostImportData = z.infer<typeof postImportSchema>;
 
